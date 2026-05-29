@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Signity ASL Interpreter</title>
+    <link rel="stylesheet" href="/static/style.css" />
+  </head>
+  <body>
+    <main class="page-shell">
+      <header class="hero">
+        <div>
+          <p class="eyebrow">Signity</p>
+          <h1>American Sign Language Interpreter</h1>
+          <p class="hero-text">
+            Real-time ASL recognition with OpenCV, MediaPipe hand tracking, a
+            stacked TensorFlow LSTM classifier, and gTTS speech output.
+          </p>
+          <div class="cta-row">
+            <a class="button button-primary" href="/live">Start interpreter</a>
+            <a class="button" href="#dataset">View dataset</a>
+          </div>
+        </div>
+        <aside class="hero-box">
+          <strong
+            >{{ "Model ready" if has_model else "Training needed" }}</strong
+          >
+          <p>
+            Static signs use the alphabet and digit image dataset. Dynamic word
+            signs use fixed-length temporal sequences from the pickle dataset.
+          </p>
+          <p>
+            <strong>{{ summary.total }}</strong> image samples and
+            <strong>{{ summary.words.total_samples }}</strong> word sequence
+            samples detected.
+          </p>
+        </aside>
+      </header>
+
+      <footer class="footer">
+        <p>Built with OpenCV, MediaPipe, TensorFlow, Flask, and gTTS.</p>
+      </footer>
+    </main>
+  </body>
+</html>

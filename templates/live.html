@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Live ASL Interpreter</title>
+    <link rel="stylesheet" href="/static/style.css" />
+  </head>
+  <body>
+    <main class="page-shell">
+      <header class="hero small">
+        <div>
+          <p class="eyebrow">Live Interpreter</p>
+          <h1>ASL Sign Recognition</h1>
+          <p class="hero-text">
+            Allow webcam access, place one hand clearly in frame, and hold each
+            sign steady while the model reads the recent frame sequence.
+          </p>
+        </div>
+        <aside class="hero-box compact">
+          <strong>{{ "Ready" if has_model else "Model missing" }}</strong>
+          <p>
+            {% if has_model %}
+            The API can load <code>model.h5</code> and <code>labels.npy</code>.
+            {% else %}
+            Train the model first with <code>python train.py</code>.
+            {% endif %}
+          </p>
+        </aside>
+      </header>
+
+      <section class="section live-grid">
+        <div class="card camera-card">
+          <div class="camera-wrapper">
+            <video id="camera" autoplay muted playsinline></video>
+            <div id="labelOverlay" class="label-overlay">Ready to sign</div>
+          </div>
+          <canvas id="snapshot" width="640" height="480"></canvas>
+          <div class="controls">
+            <button id="startButton" class="button button-primary" type="button">
+              Start camera
+            </button>
+            <button id="stopButton" class="button" type="button">Stop</button>
+            <button id="speakButton" class="button" type="button">Speak result</button>
+          </div>
+        </div>
+
+        <aside class="card stats-card">
+          <div class="prediction-box">
+            <h2>Prediction</h2>
+            <div id="prediction" class="prediction-value">
+              Waiting for camera...
+            </div>
+            <div id="confidence" class="prediction-confidence"></div>
+          </div>
+          <div class="instructions">
+            <h3>Tips</h3>
+            <ul>
+              <li>Use a bright room and a plain background.</li>
+              <li>Keep the full hand inside the camera view.</li>
+              <li>Pause briefly between signs so the frame buffer stabilizes.</li>
+            </ul>
+          </div>
+          <div class="status" id="statusMessage"></div>
+        </aside>
+      </section>
+
+      <footer class="footer">
+        <a class="button button-secondary" href="/">Back to home</a>
+      </footer>
+    </main>
+    <script src="/static/app.js"></script>
+  </body>
+</html>
