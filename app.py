@@ -3,7 +3,7 @@ from io import BytesIO
 from pathlib import Path
 import sys
 
-import cv2
+# import cv2
 import mediapipe as mp
 import numpy as np
 import tensorflow as tf
@@ -185,7 +185,9 @@ def model_assets_ready(summary=None):
 
     expected_classes = len(summary["rows"])
     if summary["words"]["present"]:
-        expected_classes += max((item["classes"] for item in summary["words"]["sets"]), default=0)
+        expected_classes += max(
+            (item["classes"] for item in summary["words"]["sets"]), default=0
+        )
 
     try:
         labels = np.load(str(LABELS_PATH), allow_pickle=True)
@@ -270,11 +272,12 @@ def predict():
         }
         for index in top_indices
     ]
-    second_confidence = float(prediction[top_indices[1]]) if len(top_indices) > 1 else 0.0
+    second_confidence = (
+        float(prediction[top_indices[1]]) if len(top_indices) > 1 else 0.0
+    )
     confidence = float(prediction[best_i])
     is_confident = (
-        confidence >= MIN_CONFIDENCE
-        and (confidence - second_confidence) >= MIN_MARGIN
+        confidence >= MIN_CONFIDENCE and (confidence - second_confidence) >= MIN_MARGIN
     )
 
     result = {
@@ -303,4 +306,4 @@ def tts():
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    app.run(host="0.0.0.0", port=5500, debug=True)

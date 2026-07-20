@@ -10,9 +10,7 @@ def build_lstm_model(sequence_length=5, feature_dim=63, num_classes=10):
     x = layers.LayerNormalization()(x)
     x = layers.Conv1D(128, kernel_size=3, padding="same", activation="relu")(x)
     x = layers.Dropout(0.15)(x)
-    x = layers.Bidirectional(
-        layers.LSTM(192, return_sequences=True, dropout=0.2)
-    )(x)
+    x = layers.Bidirectional(layers.LSTM(192, return_sequences=True, dropout=0.2))(x)
     x = layers.Bidirectional(layers.LSTM(128, dropout=0.2))(x)
     x = layers.Dense(256, activation="relu")(x)
     x = layers.BatchNormalization()(x)
