@@ -209,6 +209,8 @@ def make_static_hands():
         from mediapipe.tasks.python.core import base_options as mp_base_options
         from mediapipe.tasks.python.vision.core import (
             image as mp_image_module,
+        )
+        from mediapipe.tasks.python.vision.core import (
             vision_task_running_mode as mp_running_mode,
         )
 
@@ -405,6 +407,7 @@ def load_word_landmark_sequences(
                         with pkl_path.open("rb") as file:
                             sample = pickle.load(file)
                     except Exception:
+                        print(f"Failed to load pickle file: {pkl_path}. Skipping.")
                         continue
 
                     keypoints = (
@@ -505,7 +508,7 @@ def extract_landmarks(image, hands, normalize=True):
     if not results.multi_hand_landmarks:
         return None
 
-    landmarks = results.multi_hand_landmarks[0]
+    results.multi_hand_landmarks[0]
     detected_hands = []
     for hand_landmarks in results.multi_hand_landmarks[:MAX_HANDS]:
         points = []

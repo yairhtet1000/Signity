@@ -1,9 +1,9 @@
 import argparse
-from collections import Counter
 import os
-from pathlib import Path
 import random
 import site
+from collections import Counter
+from pathlib import Path
 
 import numpy as np
 from sklearn.model_selection import train_test_split

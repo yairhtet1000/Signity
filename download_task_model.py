@@ -1,4 +1,3 @@
-import os
 import sys
 from pathlib import Path
 from urllib.request import urlopen
@@ -47,7 +46,7 @@ def try_url(url):
             try:
                 OUT_FILE.unlink()
             except Exception:
-                pass
+                print(f"Failed to delete partial download: {OUT_FILE}")
         return False, e
 
 
