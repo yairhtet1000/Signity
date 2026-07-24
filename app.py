@@ -1,7 +1,6 @@
-import base64
+import sys
 from io import BytesIO
 from pathlib import Path
-import sys
 
 # import cv2
 import mediapipe as mp
@@ -13,8 +12,8 @@ from gtts import gTTS
 from utils import (
     FEATURE_DIM,
     SEQUENCE_LENGTH,
-    decode_base64_image,
     dataset_summary,
+    decode_base64_image,
     extract_landmarks,
     prepare_sequence,
 )
@@ -53,6 +52,8 @@ except Exception:
         from mediapipe.tasks.python.core import base_options as mp_base_options
         from mediapipe.tasks.python.vision.core import (
             image as mp_image_module,
+        )
+        from mediapipe.tasks.python.vision.core import (
             vision_task_running_mode as mp_running_mode,
         )
     except Exception:
@@ -233,6 +234,7 @@ def predict():
             try:
                 frame = decode_base64_image(element)
             except Exception:
+                print("Failed to decode one of the images in the sequence. Skipping.")
                 continue
             landmarks = extract_landmarks(frame, hands)
             if landmarks is not None:
