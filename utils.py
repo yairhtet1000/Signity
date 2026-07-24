@@ -265,7 +265,9 @@ def load_image_landmark_dataset(refresh_cache=False, max_images_per_class=None):
         and not refresh_cache
     ):
         cached = np.load(IMAGE_CACHE_PATH, allow_pickle=True)
-        cache_version = int(cached["cache_version"]) if "cache_version" in cached.files else 0
+        cache_version = (
+            int(cached["cache_version"]) if "cache_version" in cached.files else 0
+        )
         if cache_version != CACHE_VERSION:
             return load_image_landmark_dataset(
                 refresh_cache=True,
@@ -310,7 +312,11 @@ def load_image_landmark_dataset(refresh_cache=False, max_images_per_class=None):
         if hasattr(hands, "close"):
             hands.close()
 
-    X = np.stack(rows, axis=0).astype(np.float32) if rows else np.empty((0, FEATURE_DIM), dtype=np.float32)
+    X = (
+        np.stack(rows, axis=0).astype(np.float32)
+        if rows
+        else np.empty((0, FEATURE_DIM), dtype=np.float32)
+    )
     y = np.array(labels, dtype=str)
     if use_cache:
         np.savez_compressed(
@@ -359,12 +365,13 @@ def load_word_landmark_sequences(
     """Load pickle word samples and convert them to fixed-length hand sequences."""
     if (
         max_samples_per_class in (None, 0)
-        and
-        cache_is_fresh(WORD_CACHE_PATH, WORD_DATA_DIR, extensions={".pkl"})
+        and cache_is_fresh(WORD_CACHE_PATH, WORD_DATA_DIR, extensions={".pkl"})
         and not refresh_cache
     ):
         cached = np.load(WORD_CACHE_PATH, allow_pickle=True)
-        cache_version = int(cached["cache_version"]) if "cache_version" in cached.files else 0
+        cache_version = (
+            int(cached["cache_version"]) if "cache_version" in cached.files else 0
+        )
         if (
             int(cached["sequence_length"]) == sequence_length
             and cache_version == CACHE_VERSION
@@ -374,7 +381,9 @@ def load_word_landmark_sequences(
     sequences = []
     labels = []
     if not WORD_DATA_DIR.exists():
-        return np.empty((0, sequence_length, FEATURE_DIM), dtype=np.float32), np.array([], dtype=str)
+        return np.empty((0, sequence_length, FEATURE_DIM), dtype=np.float32), np.array(
+            [], dtype=str
+        )
 
     for keypoints_dir in selected_word_keypoints_dirs():
         for split in ["train", "test"]:
@@ -382,7 +391,9 @@ def load_word_landmark_sequences(
             if not split_dir.exists():
                 continue
 
-            for class_dir in sorted(split_dir.iterdir(), key=lambda p: sort_label(p.name)):
+            for class_dir in sorted(
+                split_dir.iterdir(), key=lambda p: sort_label(p.name)
+            ):
                 if not class_dir.is_dir():
                     continue
 
@@ -396,12 +407,16 @@ def load_word_landmark_sequences(
                     except Exception:
                         continue
 
-                    keypoints = sample.get("keypoints") if isinstance(sample, dict) else None
+                    keypoints = (
+                        sample.get("keypoints") if isinstance(sample, dict) else None
+                    )
                     if not isinstance(keypoints, np.ndarray) or keypoints.ndim != 3:
                         continue
 
                     label = class_dir.name.strip()
-                    file_label = sample.get("class") if isinstance(sample, dict) else None
+                    file_label = (
+                        sample.get("class") if isinstance(sample, dict) else None
+                    )
                     if isinstance(file_label, str) and file_label.strip():
                         label = file_label.strip()
 
@@ -425,7 +440,9 @@ def load_word_landmark_sequences(
                     class_count += 1
 
     if not sequences:
-        return np.empty((0, sequence_length, FEATURE_DIM), dtype=np.float32), np.array([], dtype=str)
+        return np.empty((0, sequence_length, FEATURE_DIM), dtype=np.float32), np.array(
+            [], dtype=str
+        )
 
     X = np.stack(sequences, axis=0).astype(np.float32)
     y = np.array(labels, dtype=str)
@@ -503,13 +520,17 @@ def extract_landmarks(image, hands, normalize=True):
     detected_hands.sort(key=lambda hand: float(np.mean(hand[:, 0])))
     left_hand = detected_hands[0]
     right_hand = detected_hands[1] if len(detected_hands) > 1 else None
-    vector = normalize_hand_pair(left_hand, right_hand) if normalize else np.concatenate(
-        [
-            left_hand.reshape(-1),
-            right_hand.reshape(-1)
-            if right_hand is not None
-            else np.zeros(SINGLE_HAND_FEATURE_DIM, dtype=np.float32),
-        ]
+    vector = (
+        normalize_hand_pair(left_hand, right_hand)
+        if normalize
+        else np.concatenate(
+            [
+                left_hand.reshape(-1),
+                right_hand.reshape(-1)
+                if right_hand is not None
+                else np.zeros(SINGLE_HAND_FEATURE_DIM, dtype=np.float32),
+            ]
+        )
     )
     return vector.astype(np.float32)
 
@@ -532,7 +553,9 @@ def prepare_sequence(frame_vector, sequence_length=SEQUENCE_LENGTH):
                 f"Expected feature dimension {FEATURE_DIM}, got {frame_array.shape[1]}"
             )
         if frame_array.shape[0] >= sequence_length:
-            indices = np.linspace(0, frame_array.shape[0] - 1, sequence_length, dtype=int)
+            indices = np.linspace(
+                0, frame_array.shape[0] - 1, sequence_length, dtype=int
+            )
             return frame_array[indices]
 
         first_frame = frame_array[0]
