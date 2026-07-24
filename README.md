@@ -22,6 +22,47 @@ The word pickle samples contain 75 holistic keypoints per frame. The loader
 selects the stronger hand block, normalizes it, and resamples each sign to the
 fixed LSTM sequence length.
 
+## Download the Datasets
+
+The datasets are not included in this repository because of their size.
+
+1. Download **`datasets.rar`** from Google Drive:
+   https://drive.google.com/file/d/1SSoq6TQatHlbmkETgLmsi4eCp_hFMp2D/view?usp=sharing
+
+2. Extract the downloaded `datasets.rar` file.
+
+3. Copy the extracted **`datasets`** folder into the project root so your directory looks like this:
+
+```text
+Signity/
+├── app.py
+├── train.py
+├── requirements.txt
+├── datasets/
+│   ├── processed_combine_asl_dataset/
+│   ├── asl_word_dataset/
+│   └── ...
+├── model/
+└── ...
+```
+
+The `datasets` folder contains the two required datasets:
+
+- `processed_combine_asl_dataset` – Alphabet and digit image dataset
+- `asl_word_dataset` – Word sequence dataset
+
+Once the `datasets` folder is placed in the project directory, you can train the model using:
+
+```bash
+python train.py
+```
+
+or run the interpreter with an existing trained model:
+
+```bash
+python app.py
+```
+
 ## Setup
 
 Linux/Nobara with NVIDIA GPU:
