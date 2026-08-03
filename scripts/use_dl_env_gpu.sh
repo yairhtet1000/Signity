@@ -1,8 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ENV_PREFIX="${CONDA_PREFIX:-/home/mango/.conda/envs/dl_env}"
-NVIDIA_SITE="$ENV_PREFIX/lib/python3.10/site-packages/nvidia"
+if [[ -z "${VIRTUAL_ENV:-}" && -z "${CONDA_PREFIX:-}" ]]; then
+  echo "Activate this project's virtual environment or Conda environment first." >&2
+  return 1 2>/dev/null || exit 1
+fi
+
+PYTHON_BIN="${VIRTUAL_ENV:+$VIRTUAL_ENV/bin/python}"
+PYTHON_BIN="${PYTHON_BIN:-${CONDA_PREFIX:+$CONDA_PREFIX/bin/python}}"
+NVIDIA_SITE="$("$PYTHON_BIN" -c 'import sysconfig; print(sysconfig.get_paths()["purelib"] + "/nvidia")')"
 
 CUDA_LIB_PATHS=(
   "$NVIDIA_SITE/cublas/lib"
@@ -20,6 +26,6 @@ CUDA_LIB_PATHS=(
 
 CUDA_LD_LIBRARY_PATH="$(IFS=:; echo "${CUDA_LIB_PATHS[*]}")"
 export LD_LIBRARY_PATH="$CUDA_LD_LIBRARY_PATH${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
-export MPLCONFIGDIR="${MPLCONFIGDIR:-/tmp/matplotlib-$USER}"
+export MPLCONFIGDIR="${MPLCONFIGDIR:-/tmp/matplotlib-${USER:-user}}"
 
-echo "Configured TensorFlow CUDA library paths for $ENV_PREFIX"
+echo "Configured TensorFlow CUDA library paths for $NVIDIA_SITE"

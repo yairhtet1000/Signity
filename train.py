@@ -1,7 +1,5 @@
 import argparse
-import os
 import random
-import site
 from collections import Counter
 from pathlib import Path
 
@@ -10,46 +8,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 from sklearn.utils.class_weight import compute_class_weight
 
-
-def configure_cuda_library_path():
-    """Expose pip-installed NVIDIA CUDA libraries before TensorFlow imports."""
-    candidate_roots = []
-    conda_prefix = os.environ.get("CONDA_PREFIX")
-    if conda_prefix:
-        candidate_roots.append(
-            Path(conda_prefix) / "lib" / "python3.10" / "site-packages" / "nvidia"
-        )
-    for site_dir in site.getsitepackages():
-        candidate_roots.append(Path(site_dir) / "nvidia")
-
-    lib_dirs = []
-    for root in candidate_roots:
-        if not root.exists():
-            continue
-        for package in [
-            "cublas",
-            "cuda_cupti",
-            "cuda_nvrtc",
-            "cuda_runtime",
-            "cudnn",
-            "cufft",
-            "curand",
-            "cusolver",
-            "cusparse",
-            "nccl",
-            "nvjitlink",
-        ]:
-            lib_dir = root / package / "lib"
-            if lib_dir.exists():
-                lib_dirs.append(str(lib_dir))
-
-    if lib_dirs:
-        existing = os.environ.get("LD_LIBRARY_PATH", "")
-        existing_parts = [part for part in existing.split(":") if part]
-        os.environ["LD_LIBRARY_PATH"] = ":".join(
-            list(dict.fromkeys(lib_dirs + existing_parts))
-        )
-
+from cuda_config import configure_cuda_library_path
 
 configure_cuda_library_path()
 

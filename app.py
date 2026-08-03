@@ -5,6 +5,13 @@ from pathlib import Path
 # import cv2
 import mediapipe as mp
 import numpy as np
+
+from cuda_config import configure_cuda_library_path
+
+# This must happen before importing TensorFlow so its pip-installed CUDA
+# libraries are discoverable on Pop!_OS/Linux.
+configure_cuda_library_path()
+
 import tensorflow as tf
 from flask import Flask, jsonify, render_template, request, send_file
 from gtts import gTTS
