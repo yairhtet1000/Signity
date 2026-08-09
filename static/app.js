@@ -8,7 +8,9 @@ const confidenceElement = document.getElementById("confidence");
 const statusElement = document.getElementById("statusMessage");
 const overlayElement = document.getElementById("labelOverlay");
 
-const SEQUENCE_LENGTH = 5;
+const SEQUENCE_LENGTH = 20;
+const CAPTURE_INTERVAL_MS = 125;
+const PREDICTION_INTERVAL_MS = 500;
 const frameBuffer = [];
 const predictionHistory = [];
 
@@ -17,7 +19,9 @@ let stream = null;
 // The currently displayed predicted label.
 let prediction = "...";
 // keep an interval alive while polling the backend for predictions.
-let intervalId = null;
+let captureIntervalId = null;
+let predictionIntervalId = null;
+let predictionInFlight = false;
 
 function stableLabel(nextLabel) {
   predictionHistory.push(nextLabel);
@@ -56,10 +60,11 @@ function stopCamera() {
     stream.getTracks().forEach((track) => track.stop());
     stream = null;
   }
-  if (intervalId) {
-    clearInterval(intervalId);
-    intervalId = null;
-  }
+  clearInterval(captureIntervalId);
+  clearInterval(predictionIntervalId);
+  captureIntervalId = null;
+  predictionIntervalId = null;
+  predictionInFlight = false;
   frameBuffer.length = 0;
   predictionHistory.length = 0;
   predictionElement.textContent = "Camera stopped";
@@ -75,12 +80,11 @@ function drawFrame() {
   ctx.drawImage(camera, 0, 0, snapshot.width, snapshot.height);
 }
 
-async function requestPrediction() {
+function captureFrame() {
   if (!camera || camera.readyState !== 4) {
     return;
   }
 
-  // Capture the current frame into a hidden canvas so we can send a short sequence.
   drawFrame();
   const dataUrl = snapshot.toDataURL("image/jpeg", 0.6);
   frameBuffer.push(dataUrl);
@@ -88,12 +92,18 @@ async function requestPrediction() {
     frameBuffer.shift();
   }
 
-  if (frameBuffer.length < SEQUENCE_LENGTH) {
+}
+
+async function requestPrediction() {
+  if (predictionInFlight || frameBuffer.length < SEQUENCE_LENGTH) {
+    if (frameBuffer.length < SEQUENCE_LENGTH) {
     statusElement.textContent = `Collecting sign frames... (${frameBuffer.length}/${SEQUENCE_LENGTH})`;
     overlayElement.textContent = "Hold your hand steady";
+    }
     return;
   }
 
+  predictionInFlight = true;
   try {
     const response = await fetch("/predict", {
       method: "POST",
@@ -125,14 +135,17 @@ async function requestPrediction() {
   } catch (error) {
     statusElement.textContent = `Prediction error: ${error.message}`;
     overlayElement.textContent = "Prediction failed";
+  } finally {
+    predictionInFlight = false;
   }
 }
 
 function startPredictionLoop() {
-  if (intervalId) {
-    clearInterval(intervalId);
-  }
-  intervalId = setInterval(requestPrediction, 1100);
+  clearInterval(captureIntervalId);
+  clearInterval(predictionIntervalId);
+  captureFrame();
+  captureIntervalId = setInterval(captureFrame, CAPTURE_INTERVAL_MS);
+  predictionIntervalId = setInterval(requestPrediction, PREDICTION_INTERVAL_MS);
 }
 
 async function speakPrediction() {

@@ -19,8 +19,11 @@ at `datasets/_cache/processed_asl_image_landmarks.npz`. Use
 `python train.py --refresh-cache` after changing the image dataset.
 
 The word pickle samples contain 75 holistic keypoints per frame. The loader
-selects the stronger hand block, normalizes it, and resamples each sign to the
-fixed LSTM sequence length.
+selects the hand blocks, normalizes them, and resamples each sign to a fixed
+20-frame LSTM sequence. Static alphabet/digit samples use their landmark vector
+repeated across those 20 frames so every class has the same numerical input
+shape. Each hand is wrist-relative and scale-normalized independently, with a
+stable left-hand-then-right-hand feature order.
 
 ## Download the Datasets
 
@@ -63,27 +66,93 @@ or run the interpreter with an existing trained model:
 python app.py
 ```
 
-## Setup
+## Setup: Pop!_OS with an NVIDIA GPU
 
-Linux/Nobara with NVIDIA GPU:
+These instructions replace the previous Nobara-specific setup. The project
+uses the NVIDIA driver supplied by Pop!_OS and installs TensorFlow's matching
+CUDA and cuDNN runtime libraries inside the Python environment. You do **not**
+need to install the full CUDA toolkit just to run or train this project.
 
-```bash
-conda create -n dl_env python=3.10
-conda activate dl_env
-python -m pip install -r requirements.txt "tensorflow[and-cuda]"
-scripts/install_dl_env_activation_hook.sh
-conda deactivate
-conda activate dl_env
-python -c "import tensorflow as tf; print(tf.config.list_physical_devices('GPU'))"
-```
+### 1. Confirm the Pop!_OS NVIDIA driver works
 
-Windows:
+If you installed the NVIDIA edition of Pop!_OS, its driver is normally already
+installed. Confirm it can see your card:
 
 ```bash
-python -m venv venv
-venv\Scripts\activate
-pip install -r requirements.txt
+nvidia-smi
 ```
+
+If that command fails after a driver update or after a GPU error, reboot first.
+This resets a loaded NVIDIA kernel driver that has stopped responding:
+
+```bash
+sudo reboot
+```
+
+After the reboot, run `nvidia-smi` again. If it still fails, repair the
+Pop!_OS driver, then reboot:
+
+```bash
+sudo apt update
+sudo apt install system76-driver-nvidia
+sudo reboot
+```
+
+On a laptop with switchable graphics, select **NVIDIA** or **Compute** graphics
+mode in the Pop!_OS system menu and reboot. From a terminal, the equivalent is
+`sudo system76-power graphics nvidia` or `sudo system76-power graphics compute`.
+
+### 2. Create the Python 3.11 TensorFlow environment
+
+From the project root:
+
+```bash
+sudo add-apt-repository ppa:deadsnakes/ppa
+sudo apt update
+sudo apt install python3.11 python3.11-venv
+python3.11 -m venv tf_env
+source tf_env/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+python -m pip install "tensorflow[and-cuda]"
+```
+
+Every new terminal needs the activation command before running the project:
+
+```bash
+source tf_env/bin/activate
+```
+
+If you previously ran `pip install tensorflow`, keep the same `tf_env` and run
+only the final command above. The `[and-cuda]` extra installs CUDA and cuDNN
+runtime libraries required for NVIDIA GPU use; it does not replace the Pop!_OS
+NVIDIA driver.
+
+### 3. Verify TensorFlow can use the GPU
+
+```bash
+python scripts/check_gpu.py
+```
+
+Successful output ends with at least one `PhysicalDevice` under **TensorFlow
+GPU devices**. If it reports `none` and its NVIDIA driver diagnostic says it
+cannot communicate with the driver, reboot before changing anything in
+`tf_env`. TensorFlow cannot use the GPU until `nvidia-smi` works. If
+`nvidia-smi` works but TensorFlow still reports no GPU, rerun the
+`tensorflow[and-cuda]` installation command from step 2. The app and trainer
+can still use the CPU, but training will be much slower.
+
+The project automatically restarts its Python process once, when necessary, so
+the CUDA libraries installed by pip are available before TensorFlow starts.
+This avoids the common Linux error: `Cannot dlopen some GPU libraries`.
+`scripts/use_dl_env_gpu.sh` remains available if you need to run a separate
+TensorFlow command that does not use this project's Python files.
+
+### Optional: Conda
+
+If you prefer Conda, create and activate an environment first, then use the
+same pip commands from step 2. The helper scripts no longer assume a username,
+environment name, or Python 3.10 path.
 
 ## Train
 
@@ -91,8 +160,9 @@ pip install -r requirements.txt
 python train.py
 ```
 
-Training runs for the full 80 epochs by default. Add `--early-stopping` only
-when you want validation loss to stop training early.
+Training runs for up to 80 epochs and stops early by default when validation
+loss no longer improves. The optimizer uses cosine learning-rate decay across
+the configured training steps.
 
 Useful options:
 
@@ -101,14 +171,23 @@ python train.py --refresh-cache
 python train.py --no-words
 python train.py --max-images-per-class 250
 python train.py --epochs 20 --batch-size 64
-python train.py --early-stopping --patience 12
+python train.py --epochs 100 --patience 15
+python train.py --no-early-stopping
 ```
 
 The default training caps are tuned for a practical local run:
 
 - 100 alphabet/digit image samples per class
 - 35 word sequences per class per split
-- 80 epochs unless `--early-stopping` is provided
+- 20 landmark frames per sequence
+- up to 80 epochs with early stopping enabled
+
+Changing the sequence length and landmark normalization requires retraining.
+Run `python train.py --refresh-cache` to rebuild the cached image landmarks;
+the word-sequence cache also refreshes automatically. The app can load a legacy
+`model.h5` and automatically supplies its 5-frame input, but its predictions
+will not match the new wrist-relative preprocessing. Retrain to create a
+compatible 20-frame `model.keras` before evaluating live accuracy.
 
 The current checked model was fine-tuned after the main run and validates at
 about 79.7% exact top-1 accuracy and 89.1% top-3 accuracy. The live app applies
@@ -116,8 +195,11 @@ a confidence gate so displayed predictions validate above 80% accuracy.
 
 Training saves:
 
-- `model.h5`
+- `model.keras` (native Keras format)
 - `labels.npy`
+
+The live app will also load an existing legacy `model.h5`, but new training
+runs save `model.keras` and no longer emit Keras's legacy-format warning.
 
 ## Run
 
@@ -127,12 +209,32 @@ python app.py
 
 Open `http://127.0.0.1:5000`.
 
+## Accounts, approval, and history
+
+Signity stores login data in `signity.db` by default. Set `SIGNITY_DATABASE`
+to use a different SQLite database file. Passwords are stored as hashes.
+
+Create the first administrator before registering users:
+
+```bash
+python manage.py create-admin --name "Admin Name" --email admin@example.com
+```
+
+Then an administrator can sign in at `/login`, open `/admin`, and approve
+registered users. Unapproved users cannot open the live interpreter or call
+the prediction API. Each user's changed, confident interpretation is saved in
+their `/history` page. For stable logins across server restarts, set a secret:
+
+```bash
+export SIGNITY_SECRET_KEY="replace-with-a-long-random-secret"
+```
+
 ## Use The Live Interpreter
 
 1. Click **Start camera**.
 2. Allow webcam access.
 3. Keep one hand clearly in the frame.
-4. Hold the sign steady while the app collects a short sequence.
+4. Hold the sign naturally while the app collects a 20-frame sequence.
 5. Click **Speak result** to hear the prediction.
 
 `gTTS` requires internet access when generating speech audio.

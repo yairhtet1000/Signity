@@ -1,7 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ENV_PREFIX="${CONDA_PREFIX:-/home/mango/.conda/envs/dl_env}"
+if [[ -z "${CONDA_PREFIX:-}" ]]; then
+  echo "Activate the target Conda environment before running this script." >&2
+  exit 1
+fi
+
+ENV_PREFIX="$CONDA_PREFIX"
 PYTHON_VERSION="$("$ENV_PREFIX/bin/python" -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')"
 NVIDIA_SITE="$ENV_PREFIX/lib/python$PYTHON_VERSION/site-packages/nvidia"
 ACTIVATE_DIR="$ENV_PREFIX/etc/conda/activate.d"

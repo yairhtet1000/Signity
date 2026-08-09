@@ -1,57 +1,22 @@
 import argparse
+import math
 import os
 import random
-import site
 from collections import Counter
 from pathlib import Path
+
+# Keep ordinary TensorFlow startup information out of training logs while
+# retaining warnings and errors that are useful when diagnosing GPU issues.
+os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "2")
 
 import numpy as np
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 from sklearn.utils.class_weight import compute_class_weight
 
+from cuda_config import prepare_tensorflow_cuda
 
-def configure_cuda_library_path():
-    """Expose pip-installed NVIDIA CUDA libraries before TensorFlow imports."""
-    candidate_roots = []
-    conda_prefix = os.environ.get("CONDA_PREFIX")
-    if conda_prefix:
-        candidate_roots.append(
-            Path(conda_prefix) / "lib" / "python3.10" / "site-packages" / "nvidia"
-        )
-    for site_dir in site.getsitepackages():
-        candidate_roots.append(Path(site_dir) / "nvidia")
-
-    lib_dirs = []
-    for root in candidate_roots:
-        if not root.exists():
-            continue
-        for package in [
-            "cublas",
-            "cuda_cupti",
-            "cuda_nvrtc",
-            "cuda_runtime",
-            "cudnn",
-            "cufft",
-            "curand",
-            "cusolver",
-            "cusparse",
-            "nccl",
-            "nvjitlink",
-        ]:
-            lib_dir = root / package / "lib"
-            if lib_dir.exists():
-                lib_dirs.append(str(lib_dir))
-
-    if lib_dirs:
-        existing = os.environ.get("LD_LIBRARY_PATH", "")
-        existing_parts = [part for part in existing.split(":") if part]
-        os.environ["LD_LIBRARY_PATH"] = ":".join(
-            list(dict.fromkeys(lib_dirs + existing_parts))
-        )
-
-
-configure_cuda_library_path()
+prepare_tensorflow_cuda()
 
 import tensorflow as tf
 
@@ -59,10 +24,11 @@ from model import build_lstm_model
 from utils import SEQUENCE_LENGTH, load_landmark_dataset, sort_label
 
 BASE_DIR = Path(__file__).resolve().parent
-MODEL_PATH = BASE_DIR / "model.h5"
+MODEL_PATH = BASE_DIR / "model.keras"
 LABELS_PATH = BASE_DIR / "labels.npy"
 BATCH_SIZE = 32
 EPOCHS = 80
+LEARNING_RATE = 1e-3
 RANDOM_STATE = 42
 LOG_PATH = BASE_DIR / "training_log.csv"
 
@@ -71,10 +37,19 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Train the Signity ASL LSTM model.")
     parser.add_argument("--epochs", type=int, default=EPOCHS)
     parser.add_argument("--batch-size", type=int, default=BATCH_SIZE)
-    parser.add_argument(
+    parser.add_argument("--learning-rate", type=float, default=LEARNING_RATE)
+    early_stopping_group = parser.add_mutually_exclusive_group()
+    early_stopping_group.add_argument(
         "--early-stopping",
+        dest="early_stopping",
         action="store_true",
-        help="Stop before --epochs when validation loss stops improving.",
+        help="Enable early stopping (the default).",
+    )
+    early_stopping_group.add_argument(
+        "--no-early-stopping",
+        dest="early_stopping",
+        action="store_false",
+        help="Always train for the full number of epochs.",
     )
     parser.add_argument(
         "--patience",
@@ -115,6 +90,7 @@ def parse_args():
         default=35,
         help="Limit word sequence samples per class. Use 0 for all word samples.",
     )
+    parser.set_defaults(early_stopping=True)
     return parser.parse_args()
 
 
@@ -181,10 +157,14 @@ def main():
         stratify=y_encoded,
     )
 
+    steps_per_epoch = math.ceil(len(X_train) / args.batch_size)
+    decay_steps = max(1, args.epochs * steps_per_epoch)
     model = build_lstm_model(
         sequence_length=SEQUENCE_LENGTH,
         feature_dim=X_seq.shape[2],
         num_classes=num_classes,
+        learning_rate=args.learning_rate,
+        decay_steps=decay_steps,
     )
     model.summary()
 
@@ -197,13 +177,15 @@ def main():
             verbose=1,
         ),
         tf.keras.callbacks.CSVLogger(str(LOG_PATH)),
+        tf.keras.callbacks.TerminateOnNaN(),
     ]
     if args.early_stopping:
         callbacks.append(
             tf.keras.callbacks.EarlyStopping(
                 monitor="val_loss",
                 patience=args.patience,
-                restore_best_weights=True,
+            restore_best_weights=True,
+            verbose=1,
             )
         )
 
