@@ -20,7 +20,8 @@
         <aside class="hero-box compact">
           <strong>{{ "Ready" if has_model else "Model missing" }}</strong>
           <p>
-            {% if has_model %} The API can load <code>model.h5</code> and
+            {% if has_model %} The API can load <code>model.keras</code> (or a
+            legacy <code>model.h5</code>) and
             <code>labels.npy</code>. {% else %} Train the model first with
             <code>python train.py</code>. {% endif %}
           </p>

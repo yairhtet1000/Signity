@@ -23,14 +23,14 @@ CACHE_DIR = DATASETS_DIR / "_cache"
 IMAGE_CACHE_PATH = CACHE_DIR / "processed_asl_image_landmarks.npz"
 WORD_CACHE_PATH = CACHE_DIR / "asl_word_sequences.npz"
 
-SEQUENCE_LENGTH = 5
+SEQUENCE_LENGTH = 20
 LANDMARK_VALUES = 3
 HAND_LANDMARKS = 21
 MAX_HANDS = 2
 SINGLE_HAND_FEATURE_DIM = HAND_LANDMARKS * LANDMARK_VALUES
 FEATURE_DIM = MAX_HANDS * SINGLE_HAND_FEATURE_DIM
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
-CACHE_VERSION = 3
+CACHE_VERSION = 4
 
 
 def sort_label(label):
@@ -57,31 +57,33 @@ def normalize_hand_landmarks(frame, sort_points=False):
 
 
 def normalize_hand_pair(left_hand=None, right_hand=None, sort_points=False):
-    """Return a normalized 126-value left+right hand vector."""
-    hands = []
+    """Return wrist-relative, scale-normalized left+right hand landmarks.
+
+    Each 63-value hand block is normalized independently so hand position and
+    camera distance do not affect a sign. Feature order is always left hand
+    followed by right hand; a missing hand is represented by zeroes.
+    """
+    normalized_hands = []
     for hand in [left_hand, right_hand]:
         if hand is None:
-            hands.append(np.zeros((HAND_LANDMARKS, LANDMARK_VALUES), dtype=np.float32))
-        else:
-            hand_points = np.asarray(hand, dtype=np.float32).reshape(
-                HAND_LANDMARKS,
-                LANDMARK_VALUES,
+            normalized_hands.append(
+                np.zeros((HAND_LANDMARKS, LANDMARK_VALUES), dtype=np.float32)
             )
-            if sort_points:
-                order = np.lexsort((hand_points[:, 0], hand_points[:, 1]))
-                hand_points = hand_points[order]
-            hands.append(hand_points)
+            continue
 
-    points = np.vstack(hands).astype(np.float32)
-    active = np.linalg.norm(points, axis=1) > 1e-8
-    if np.any(active):
-        center = np.mean(points[active], axis=0, keepdims=True)
-        points[active] = points[active] - center
-        scale = np.max(np.linalg.norm(points[active], axis=1))
+        points = np.asarray(hand, dtype=np.float32).reshape(
+            HAND_LANDMARKS, LANDMARK_VALUES
+        )
+        if sort_points:
+            order = np.lexsort((points[:, 0], points[:, 1]))
+            points = points[order]
+        points = points - points[0:1]
+        scale = np.max(np.linalg.norm(points, axis=1))
         if scale > 1e-6:
-            points[active] = points[active] / scale
+            points = points / scale
+        normalized_hands.append(points)
 
-    return points.reshape(-1).astype(np.float32)
+    return np.vstack(normalized_hands).reshape(-1).astype(np.float32)
 
 
 def extract_skeleton_image_landmarks(image):
@@ -508,21 +510,35 @@ def extract_landmarks(image, hands, normalize=True):
     if not results.multi_hand_landmarks:
         return None
 
-    results.multi_hand_landmarks[0]
     detected_hands = []
-    for hand_landmarks in results.multi_hand_landmarks[:MAX_HANDS]:
+    handedness = getattr(results, "multi_handedness", None) or []
+    for index, hand_landmarks in enumerate(results.multi_hand_landmarks[:MAX_HANDS]):
         points = []
         for lm in hand_landmarks.landmark[:HAND_LANDMARKS]:
             points.append([lm.x, lm.y, lm.z])
         if len(points) == HAND_LANDMARKS:
-            detected_hands.append(np.array(points, dtype=np.float32))
+            label = None
+            if index < len(handedness):
+                classifications = getattr(handedness[index], "classification", [])
+                if classifications:
+                    label = getattr(classifications[0], "label", None)
+            detected_hands.append((str(label or "").lower(), np.array(points, dtype=np.float32)))
 
     if not detected_hands:
         return None
 
-    detected_hands.sort(key=lambda hand: float(np.mean(hand[:, 0])))
-    left_hand = detected_hands[0]
-    right_hand = detected_hands[1] if len(detected_hands) > 1 else None
+    left_hand = next((hand for label, hand in detected_hands if label == "left"), None)
+    right_hand = next((hand for label, hand in detected_hands if label == "right"), None)
+
+    # Older MediaPipe wrappers do not expose handedness. Preserve a stable
+    # fallback based on image position for those installations.
+    unlabelled = [hand for label, hand in detected_hands if label not in {"left", "right"}]
+    if unlabelled:
+        unlabelled.sort(key=lambda hand: float(np.mean(hand[:, 0])))
+        if left_hand is None:
+            left_hand = unlabelled.pop(0)
+        if unlabelled and right_hand is None:
+            right_hand = unlabelled.pop(0)
     vector = (
         normalize_hand_pair(left_hand, right_hand)
         if normalize

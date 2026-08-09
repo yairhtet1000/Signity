@@ -8,6 +8,7 @@ kernel driver is supplied by the operating system.
 
 import os
 import site
+import sys
 import sysconfig
 from pathlib import Path
 
@@ -54,3 +55,18 @@ def configure_cuda_library_path():
     ordered_dirs = list(dict.fromkeys(lib_dirs + existing))
     os.environ["LD_LIBRARY_PATH"] = ":".join(ordered_dirs)
     return lib_dirs
+
+
+def prepare_tensorflow_cuda():
+    """Set CUDA paths and restart Python once so the dynamic linker sees them.
+
+    Updating ``os.environ`` after Python starts is too late for some Linux
+    dynamic-loader lookups. Re-executing the current command starts Python with
+    the pip-installed NVIDIA libraries already in ``LD_LIBRARY_PATH``.
+    """
+    lib_dirs = configure_cuda_library_path()
+    if not lib_dirs or os.environ.get("_SIGNITY_CUDA_REEXEC") == "1":
+        return lib_dirs
+
+    os.environ["_SIGNITY_CUDA_REEXEC"] = "1"
+    os.execvpe(sys.executable, [sys.executable, *sys.argv], os.environ)
