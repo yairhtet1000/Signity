@@ -24,10 +24,25 @@
         <aside class="hero-box">
           {% if account %}
           <p>Signed in as <strong>{{ account.name }}</strong>.</p>
-          {% if account.role == "admin" %}<a class="button" href="/admin">Admin dashboard</a>{% elif account.approved %}<a class="button" href="/history">View history</a>{% else %}<p>Your account is awaiting approval.</p>{% endif %}
-          <form method="post" action="/logout"><button class="button" type="submit">Sign out</button></form>
+          {% if account.role == "admin" %}<a class="button" href="/admin"
+            >Admin dashboard</a
+          >{% elif account.approved %}<a class="button" href="/history"
+            >View history</a
+          >{% else %}
+          <p>Your account is awaiting approval.</p>
+          {% endif %}
+          <form method="post" action="/logout">
+            <input
+              type="hidden"
+              name="csrf_token"
+              value="{{ csrf_token() }}"
+            /><button class="button" type="submit">Sign out</button>
+          </form>
           {% else %}
-          <p><a class="button" href="/login">Sign in</a> <a class="button" href="/register">Register</a></p>
+          <p>
+            <a class="button" href="/login">Sign in</a>
+            <a class="button" href="/register">Register</a>
+          </p>
           {% endif %}
           <strong>
             {{ "Model ready" if has_model else "Training needed" }}

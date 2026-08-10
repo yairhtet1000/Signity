@@ -4,7 +4,7 @@ from tensorflow.keras import layers, models
 
 def build_lstm_model(
     sequence_length=20,
-    feature_dim=63,
+    feature_dim=126,
     num_classes=10,
     learning_rate=1e-3,
     decay_steps=None,

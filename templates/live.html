@@ -4,10 +4,12 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Live ASL Interpreter</title>
+    <meta name="csrf-token" content="{{ csrf_token() }}" />
     <link rel="stylesheet" href="/static/style.css" />
   </head>
   <body>
     <main class="page-shell">
+      <div id="toast" class="toast" role="status" aria-live="polite"></div>
       <header class="hero small">
         <div>
           <p class="eyebrow">Live Interpreter</p>
@@ -21,9 +23,9 @@
           <strong>{{ "Ready" if has_model else "Model missing" }}</strong>
           <p>
             {% if has_model %} The API can load <code>model.keras</code> (or a
-            legacy <code>model.h5</code>) and
-            <code>labels.npy</code>. {% else %} Train the model first with
-            <code>python train.py</code>. {% endif %}
+            legacy <code>model.h5</code>) and <code>labels.npy</code>. {% else
+            %} Train the model first with <code>python train.py</code>. {% endif
+            %}
           </p>
         </aside>
       </header>
@@ -33,6 +35,9 @@
           <div class="camera-wrapper">
             <video id="camera" autoplay muted playsinline></video>
             <div id="labelOverlay" class="label-overlay">Ready to sign</div>
+            <div id="processingIndicator" class="processing-indicator" hidden>
+              Processing…
+            </div>
           </div>
           <canvas id="snapshot" width="640" height="480"></canvas>
           <div class="controls">

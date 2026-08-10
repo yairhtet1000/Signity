@@ -2,6 +2,8 @@ import os
 import secrets
 import sqlite3
 import sys
+import threading
+from functools import wraps
 from io import BytesIO
 from pathlib import Path
 
@@ -20,8 +22,20 @@ from cuda_config import prepare_tensorflow_cuda
 prepare_tensorflow_cuda()
 
 import tensorflow as tf
-from flask import flash, jsonify, redirect, render_template, request, send_file, session, url_for
+from flask import (
+    Flask,
+    flash,
+    g,
+    jsonify,
+    redirect,
+    render_template,
+    request,
+    send_file,
+    session,
+    url_for,
+)
 from gtts import gTTS
+from werkzeug.exceptions import RequestEntityTooLarge
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from database import get_connection, initialize_database
@@ -40,16 +54,44 @@ BASE_DIR = Path(__file__).resolve().parent
 MODEL_PATH = BASE_DIR / "model.keras"
 LEGACY_MODEL_PATH = BASE_DIR / "model.h5"
 LABELS_PATH = BASE_DIR / "labels.npy"
-MIN_CONFIDENCE = 0.40
-MIN_MARGIN = 0.03
+MIN_CONFIDENCE = float(os.environ.get("SIGNITY_MIN_CONFIDENCE", "0.55"))
+MIN_MARGIN = float(os.environ.get("SIGNITY_MIN_MARGIN", "0.02"))
+MIN_VALID_FRAME_RATIO = 0.80
+MAX_SEQUENCE_FRAMES = 32
+INFERENCE_DEBUG = os.environ.get("SIGNITY_INFERENCE_DEBUG") == "1"
 
 app = Flask(__name__)
-app.config["SECRET_KEY"] = os.environ.get("SIGNITY_SECRET_KEY", secrets.token_urlsafe(32))
+app.config.update(
+    SECRET_KEY=os.environ.get("SIGNITY_SECRET_KEY", secrets.token_urlsafe(32)),
+    MAX_CONTENT_LENGTH=12 * 1024 * 1024,
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE="Lax",
+    SESSION_COOKIE_SECURE=os.environ.get("SIGNITY_SECURE_COOKIES") == "1",
+)
 initialize_database()
+if INFERENCE_DEBUG:
+    app.logger.setLevel("INFO")
+
+
+@app.errorhandler(RequestEntityTooLarge)
+def request_too_large(_error):
+    if request.path == "/predict":
+        return api_error("Request is too large. Send fewer or smaller frames.", 413)
+    return "Request is too large.", 413
+
 
 # Cache the model and labels in memory so repeated requests are fast.
 model = None
 label_classes = None
+inference_lock = threading.Lock()
+
+
+def api_response(data=None, status=200):
+    return jsonify({"success": True, "data": data}), status
+
+
+def api_error(message, status=400):
+    return jsonify({"success": False, "data": None, "error": message}), status
 
 
 def current_account():
@@ -58,31 +100,117 @@ def current_account():
         return None
     table = "Admin" if role == "admin" else "User"
     with get_connection() as connection:
-        row = connection.execute(f'SELECT id, name, email FROM "{table}" WHERE id = ?', (account_id,)).fetchone()
+        row = connection.execute(
+            f'SELECT id, name, email FROM "{table}" WHERE id = ?', (account_id,)
+        ).fetchone()
         if row is None:
             session.clear()
             return None
-        approved = role == "admin" or connection.execute('SELECT 1 FROM "UserApprove" WHERE userId = ?', (account_id,)).fetchone() is not None
-    return {**dict(row), "role": role, "approved": approved}
+        status = (
+            "approved"
+            if role == "admin"
+            else connection.execute(
+                'SELECT approval_status FROM "User" WHERE id = ?', (account_id,)
+            ).fetchone()["approval_status"]
+        )
+    return {
+        **dict(row),
+        "role": role,
+        "approved": status == "approved",
+        "approval_status": status,
+    }
 
 
-def require_access(api=False, admin_only=False):
-    account = current_account()
-    allowed = account and (account["role"] == "admin" if admin_only else account["role"] == "admin" or account["approved"])
-    if allowed:
-        return account
+def _auth_failure(api, message, status):
     if api:
-        return jsonify({"error": "Admin approval is required." if account else "Sign in to use the interpreter."}), 403
-    flash("Your account needs admin approval." if account else "Sign in to continue.", "warning")
+        return api_error(message, status)
+    flash(message, "warning")
     return redirect(url_for("login"))
+
+
+def login_required(api=False):
+    def decorator(view):
+        @wraps(view)
+        def wrapped(*args, **kwargs):
+            account = current_account()
+            if account is None:
+                return _auth_failure(api, "Sign in to continue.", 401)
+            g.account = account
+            return view(*args, **kwargs)
+
+        return wrapped
+
+    return decorator
+
+
+def admin_required(api=False):
+    def decorator(view):
+        @login_required(api=api)
+        @wraps(view)
+        def wrapped(*args, **kwargs):
+            if g.account["role"] != "admin":
+                return _auth_failure(api, "Administrator access is required.", 403)
+            return view(*args, **kwargs)
+
+        return wrapped
+
+    return decorator
+
+
+def approved_user_required(api=False):
+    def decorator(view):
+        @login_required(api=api)
+        @wraps(view)
+        def wrapped(*args, **kwargs):
+            if g.account["role"] != "admin" and not g.account["approved"]:
+                return _auth_failure(
+                    api, "Your account is awaiting admin approval.", 403
+                )
+            return view(*args, **kwargs)
+
+        return wrapped
+
+    return decorator
+
+
+def csrf_token():
+    return session.setdefault("csrf_token", secrets.token_urlsafe(24))
+
+
+@app.context_processor
+def inject_template_globals():
+    return {"csrf_token": csrf_token}
+
+
+def csrf_required(view):
+    @wraps(view)
+    def wrapped(*args, **kwargs):
+        if request.method in {"GET", "HEAD", "OPTIONS"}:
+            return view(*args, **kwargs)
+        token = request.form.get("csrf_token") or request.headers.get("X-CSRF-Token")
+        if not token or not secrets.compare_digest(
+            token, session.get("csrf_token", "")
+        ):
+            return (
+                api_error("Invalid CSRF token.", 400)
+                if request.is_json
+                else ("Invalid CSRF token.", 400)
+            )
+        return view(*args, **kwargs)
+
+    return wrapped
 
 
 def record_history(user_id, interpreted_text):
     if session.get("last_interpreted_text") == interpreted_text:
         return
     with get_connection() as connection:
-        connection.execute('INSERT INTO "UserHistory" (userId, interpretedTexts) VALUES (?, ?)', (user_id, interpreted_text))
+        connection.execute(
+            'INSERT INTO "UserHistory" (userId, interpretedText) VALUES (?, ?)',
+            (user_id, interpreted_text),
+        )
     session["last_interpreted_text"] = interpreted_text
+
 
 # We prefer the classic `mp.solutions.hands` API when available because
 # our utilities were written against it. If it's not available (newer
@@ -190,8 +318,12 @@ except Exception:
             if hasattr(result, "hand_landmarks") and result.hand_landmarks:
                 for index, hand_kp in enumerate(result.hand_landmarks):
                     hands_list.append(_Hand(hand_kp))
-                    categories = (getattr(result, "handedness", []) or [])
-                    category = categories[index][0] if index < len(categories) and categories[index] else None
+                    categories = getattr(result, "handedness", []) or []
+                    category = (
+                        categories[index][0]
+                        if index < len(categories) and categories[index]
+                        else None
+                    )
                     label = getattr(category, "category_name", "")
                     handedness_list.append(_Handedness(label))
 
@@ -231,7 +363,14 @@ def load_model_and_labels():
             raise FileNotFoundError(
                 "Trained model not found. Run python train.py first."
             )
-        model = tf.keras.models.load_model(str(model_path))
+        # Inference does not need optimizer/loss state; skipping compilation
+        # makes startup faster and avoids legacy training-object warnings.
+        model = tf.keras.models.load_model(str(model_path), compile=False)
+        if any(layer.__class__.__name__ == "Masking" for layer in model.layers):
+            app.logger.warning(
+                "Loaded model contains a legacy Masking layer before Conv1D. "
+                "Retrain with the current pipeline for reliable live inference."
+            )
 
     if label_classes is None:
         if not LABELS_PATH.exists():
@@ -278,157 +417,282 @@ def model_assets_ready(summary=None):
     return expected_classes == 0 or len(labels) == expected_classes
 
 
+def sequence_from_live_frames(image_sequence, expected_length):
+    """Extract a reliable full-window landmark sequence from browser frames."""
+    if not isinstance(image_sequence, list) or len(image_sequence) != expected_length:
+        raise ValueError(f"Expected exactly {expected_length} captured frames.")
+
+    landmarks_sequence = []
+    for element in image_sequence:
+        try:
+            frame = decode_base64_image(element)
+        except Exception:
+            continue
+        if frame is None:
+            continue
+        with inference_lock:
+            landmarks = extract_landmarks(frame, hands)
+        if landmarks is not None and landmarks.shape == (FEATURE_DIM,):
+            landmarks_sequence.append(landmarks)
+
+    minimum_valid_frames = max(4, int(np.ceil(expected_length * MIN_VALID_FRAME_RATIO)))
+    if len(landmarks_sequence) < minimum_valid_frames:
+        raise ValueError(
+            f"Hand tracking found only {len(landmarks_sequence)}/{expected_length} usable frames. "
+            "Keep your hand visible for the complete capture window."
+        )
+
+    sequence = prepare_sequence(
+        np.stack(landmarks_sequence), sequence_length=expected_length
+    )
+    if sequence.shape != (expected_length, FEATURE_DIM):
+        raise ValueError(f"Invalid sequence shape: {sequence.shape}.")
+    return sequence, len(landmarks_sequence)
+
+
+def log_inference(sequence, probabilities, predicted_label, confidence, valid_frames):
+    if INFERENCE_DEBUG:
+        app.logger.info(
+            "inference valid_frames=%s landmarks=%s sequence=%s probabilities=%s label=%s confidence=%.4f",
+            valid_frames,
+            (FEATURE_DIM,),
+            sequence.shape,
+            np.array2string(probabilities, precision=4, threshold=probabilities.size),
+            predicted_label,
+            confidence,
+        )
+
+
 @app.route("/")
 def index():
     """Render the home page with dataset summary and model readiness state."""
     summary = dataset_summary()
     has_model = model_assets_ready(summary)
-    return render_template("index.html", summary=summary, has_model=has_model, account=current_account())
+    return render_template(
+        "index.html", summary=summary, has_model=has_model, account=current_account()
+    )
 
 
 @app.route("/register", methods=["GET", "POST"])
+@csrf_required
 def register():
     if request.method == "POST":
-        name, email, password = request.form.get("name", "").strip(), request.form.get("email", "").strip().lower(), request.form.get("password", "")
+        name, email, password = (
+            request.form.get("name", "").strip(),
+            request.form.get("email", "").strip().lower(),
+            request.form.get("password", ""),
+        )
         if not name or not email or len(password) < 8:
-            flash("Enter a name and email, and use a password with at least 8 characters.", "error")
+            flash(
+                "Enter a name and email, and use a password with at least 8 characters.",
+                "error",
+            )
         else:
             try:
                 with get_connection() as connection:
-                    connection.execute('INSERT INTO "User" (name, email, password) VALUES (?, ?, ?)', (name, email, generate_password_hash(password)))
+                    connection.execute(
+                        'INSERT INTO "User" (name, email, password, is_approved, approval_status) VALUES (?, ?, ?, 0, "pending")',
+                        (name, email, generate_password_hash(password)),
+                    )
             except sqlite3.IntegrityError:
                 flash("An account with that email already exists.", "error")
             else:
-                flash("Registration received. An admin must approve your account before access is enabled.", "success")
+                flash(
+                    "Registration received. An admin must approve your account before access is enabled.",
+                    "success",
+                )
                 return redirect(url_for("login"))
     return render_template("register.html", account=None)
 
 
 @app.route("/login", methods=["GET", "POST"])
+@csrf_required
 def login():
     if request.method == "POST":
-        email, password = request.form.get("email", "").strip().lower(), request.form.get("password", "")
+        email, password = (
+            request.form.get("email", "").strip().lower(),
+            request.form.get("password", ""),
+        )
         role = request.form.get("role", "user")
         role = role if role in {"user", "admin"} else "user"
         table = "Admin" if role == "admin" else "User"
         with get_connection() as connection:
-            account = connection.execute(f'SELECT id, password FROM "{table}" WHERE email = ?', (email,)).fetchone()
+            account = connection.execute(
+                f'SELECT id, password FROM "{table}" WHERE email = ?', (email,)
+            ).fetchone()
         if account is None or not check_password_hash(account["password"], password):
             flash("Invalid email, password, or account type.", "error")
         else:
             session.clear()
             session.update(account_id=account["id"], role=role)
             if role == "user" and not current_account()["approved"]:
-                flash("Your account is awaiting admin approval.", "warning")
+                status = current_account()["approval_status"]
+                flash(
+                    f"Your account is {status}; an admin must approve it before access is enabled.",
+                    "warning",
+                )
                 return redirect(url_for("index"))
             return redirect(url_for("admin_dashboard" if role == "admin" else "live"))
     return render_template("login.html", account=None)
 
 
 @app.post("/logout")
+@csrf_required
 def logout():
     session.clear()
     return redirect(url_for("index"))
 
 
 @app.route("/history")
+@approved_user_required()
 def history():
-    account = require_access()
-    if not isinstance(account, dict): return account
-    if account["role"] == "admin": return redirect(url_for("admin_dashboard"))
+    account = g.account
+    if account["role"] == "admin":
+        return redirect(url_for("admin_dashboard"))
     with get_connection() as connection:
-        rows = connection.execute('SELECT id, interpretedTexts FROM "UserHistory" WHERE userId = ? ORDER BY id DESC', (account["id"],)).fetchall()
+        rows = connection.execute(
+            'SELECT id, interpretedText, timestamp FROM "UserHistory" WHERE userId = ? ORDER BY timestamp DESC, id DESC',
+            (account["id"],),
+        ).fetchall()
     return render_template("history.html", account=account, history=rows)
 
 
 @app.route("/admin")
+@admin_required()
 def admin_dashboard():
-    account = require_access(admin_only=True)
-    if not isinstance(account, dict): return account
+    account = g.account
+    page = max(request.args.get("page", 1, type=int), 1)
+    page_size = 20
+    offset = (page - 1) * page_size
     with get_connection() as connection:
-        pending = connection.execute('SELECT u.id, u.name, u.email FROM "User" u LEFT JOIN "UserApprove" p ON p.userId = u.id WHERE p.userId IS NULL ORDER BY u.id').fetchall()
-        activity = connection.execute('SELECT a.action, admin.name AS admin_name, user.name AS user_name FROM "AdminActivity" a JOIN "Admin" admin ON admin.id = a.adminId JOIN "User" user ON user.id = a.userId ORDER BY a.id DESC LIMIT 20').fetchall()
-    return render_template("admin.html", account=account, pending=pending, activity=activity)
+        pending = connection.execute(
+            'SELECT id, name, email, approval_status, created_at FROM "User" WHERE approval_status = "pending" ORDER BY created_at ASC, id ASC'
+        ).fetchall()
+        activity = connection.execute(
+            'SELECT a.action, a.timestamp, admin.name AS admin_name, user.name AS user_name FROM "AdminActivity" a JOIN "Admin" admin ON admin.id = a.adminId JOIN "User" user ON user.id = a.userId ORDER BY a.timestamp DESC, a.id DESC LIMIT ? OFFSET ?',
+            (page_size, offset),
+        ).fetchall()
+        activity_count = connection.execute(
+            'SELECT COUNT(*) AS count FROM "AdminActivity"'
+        ).fetchone()["count"]
+    return render_template(
+        "admin.html",
+        account=account,
+        pending=pending,
+        activity=activity,
+        page=page,
+        has_next=offset + page_size < activity_count,
+    )
 
 
 @app.post("/admin/users/<int:user_id>/approve")
+@csrf_required
+@admin_required()
 def approve_user(user_id):
-    account = require_access(admin_only=True)
-    if not isinstance(account, dict): return account
+    account = g.account
     with get_connection() as connection:
-        user = connection.execute('SELECT id, name FROM "User" WHERE id = ?', (user_id,)).fetchone()
-        if user:
-            connection.execute('INSERT OR IGNORE INTO "UserApprove" (adminId, userId) VALUES (?, ?)', (account["id"], user_id))
-            connection.execute('INSERT INTO "AdminActivity" (adminId, userId, action) VALUES (?, ?, ?)', (account["id"], user_id, f"Approved {user['name']}"))
-            flash(f"Approved {user['name']}.", "success")
+        user = connection.execute(
+            'SELECT id, name FROM "User" WHERE id = ?', (user_id,)
+        ).fetchone()
+        if user is None:
+            return ("User not found.", 404)
+        connection.execute(
+            'UPDATE "User" SET is_approved = 1, approval_status = "approved" WHERE id = ?',
+            (user_id,),
+        )
+        connection.execute(
+            'INSERT INTO "UserApprove" (adminId, userId, decision) VALUES (?, ?, "approved")',
+            (account["id"], user_id),
+        )
+        connection.execute(
+            'INSERT INTO "AdminActivity" (adminId, userId, action) VALUES (?, ?, ?)',
+            (account["id"], user_id, f"Approved {user['name']}"),
+        )
+        flash(f"Approved {user['name']}.", "success")
+    return redirect(url_for("admin_dashboard"))
+
+
+@app.post("/admin/users/<int:user_id>/reject")
+@csrf_required
+@admin_required()
+def reject_user(user_id):
+    account = g.account
+    with get_connection() as connection:
+        user = connection.execute(
+            'SELECT id, name FROM "User" WHERE id = ?', (user_id,)
+        ).fetchone()
+        if user is None:
+            return ("User not found.", 404)
+        connection.execute(
+            'UPDATE "User" SET is_approved = 0, approval_status = "rejected" WHERE id = ?',
+            (user_id,),
+        )
+        connection.execute(
+            'INSERT INTO "UserApprove" (adminId, userId, decision) VALUES (?, ?, "rejected")',
+            (account["id"], user_id),
+        )
+        connection.execute(
+            'INSERT INTO "AdminActivity" (adminId, userId, action) VALUES (?, ?, ?)',
+            (account["id"], user_id, f"Rejected {user['name']}"),
+        )
+        flash(f"Rejected {user['name']}.", "success")
     return redirect(url_for("admin_dashboard"))
 
 
 @app.route("/live")
+@approved_user_required()
 def live():
     """Render the live webcam interface for prediction."""
-    account = require_access()
-    if not isinstance(account, dict): return account
+    account = g.account
     has_model = model_assets_ready()
     return render_template("live.html", has_model=has_model, account=account)
 
 
 @app.route("/predict", methods=["POST"])
+@approved_user_required(api=True)
+@csrf_required
 def predict():
     """Receive a webcam snapshot, detect hand landmarks, and return a class."""
-    account = require_access(api=True)
-    if not isinstance(account, dict): return account
+    account = g.account
     if not request.is_json:
-        return jsonify({"error": "Expected application/json body."}), 400
+        return api_error("Expected application/json body.", 400)
 
-    payload = request.get_json()
+    payload = request.get_json(silent=True) or {}
     image_data = payload.get("image")
     image_sequence = payload.get("images")
 
-    if not image_data and not image_sequence:
-        return jsonify({"error": "Missing image data."}), 400
-
-    load_model_and_labels()
-
-    if image_sequence and isinstance(image_sequence, list):
-        landmarks_sequence = []
-        for element in image_sequence:
-            try:
-                frame = decode_base64_image(element)
-            except Exception:
-                print("Failed to decode one of the images in the sequence. Skipping.")
-                continue
-            landmarks = extract_landmarks(frame, hands)
-            if landmarks is not None:
-                landmarks_sequence.append(landmarks)
-
-        if not landmarks_sequence:
-            return jsonify(
-                {"error": "No hand landmarks detected in the image sequence."}
-            ), 200
-
-        sequence = prepare_sequence(
-            np.stack(landmarks_sequence, axis=0),
-            sequence_length=prediction_sequence_length(),
+    if not image_sequence:
+        return api_error(
+            "A complete frame sequence is required for live prediction.", 400
         )
-    else:
-        try:
-            image = decode_base64_image(image_data)
-        except Exception as exc:
-            return jsonify({"error": f"Unable to decode image: {exc}"}), 400
-
-        landmarks = extract_landmarks(image, hands)
-        if landmarks is None:
-            return jsonify({"error": "No hand landmarks detected."}), 200
-
-        sequence = prepare_sequence(
-            landmarks, sequence_length=prediction_sequence_length()
+    if image_data:
+        return api_error(
+            "Single-frame prediction is disabled for the sequence model.", 400
         )
 
     try:
-        prediction = model.predict(np.array([sequence], dtype=np.float32), verbose=0)[0]
+        load_model_and_labels()
+    except (FileNotFoundError, ValueError) as exc:
+        app.logger.exception("Model assets are unavailable")
+        return api_error(str(exc), 503)
+
+    expected_length = prediction_sequence_length()
+    if expected_length > MAX_SEQUENCE_FRAMES:
+        return api_error("The loaded model has an unsupported sequence length.", 503)
+    try:
+        sequence, valid_frames = sequence_from_live_frames(
+            image_sequence, expected_length
+        )
+    except ValueError as exc:
+        return api_error(str(exc), 422)
+
+    try:
+        input_tensor = np.expand_dims(sequence, axis=0).astype(np.float32)
+        with inference_lock:
+            prediction = model.predict(input_tensor, verbose=0)[0]
     except Exception as exc:
-        return jsonify({"error": f"Prediction failed: {exc}"}), 500
+        app.logger.exception("Prediction failed")
+        return api_error("Prediction failed.", 500)
     best_i = int(np.argmax(prediction))
     top_indices = np.argsort(prediction)[-3:][::-1]
     top = [
@@ -452,19 +716,22 @@ def predict():
         "confidence": confidence,
         "is_confident": is_confident,
         "top": top,
-        "all": [float(x) for x in prediction.tolist()],
+        "sequence_shape": list(input_tensor.shape),
+        "valid_frames": valid_frames,
     }
+    log_inference(sequence, prediction, result["raw_label"], confidence, valid_frames)
     if is_confident and account["role"] == "user":
         record_history(account["id"], result["raw_label"])
-    return jsonify(result)
+    return api_response(result)
 
 
 @app.route("/tts")
+@approved_user_required(api=True)
 def tts():
     """Generate spoken audio for the given text query parameter."""
     text = request.args.get("text", "")
     if not text:
-        return jsonify({"error": "Missing text query parameter."}), 400
+        return api_error("Missing text query parameter.", 400)
 
     tts_audio = gTTS(text=text, lang="en")
     mp3_buffer = BytesIO()
@@ -474,4 +741,8 @@ def tts():
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5500, debug=True)
+    app.run(
+        host=os.environ.get("SIGNITY_HOST", "127.0.0.1"),
+        port=int(os.environ.get("SIGNITY_PORT", "5500")),
+        debug=os.environ.get("FLASK_DEBUG") == "1",
+    )
