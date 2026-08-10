@@ -7,12 +7,16 @@ const predictionElement = document.getElementById("prediction");
 const confidenceElement = document.getElementById("confidence");
 const statusElement = document.getElementById("statusMessage");
 const overlayElement = document.getElementById("labelOverlay");
+const processingIndicator = document.getElementById("processingIndicator");
+const toastElement = document.getElementById("toast");
+const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
 
 const SEQUENCE_LENGTH = 20;
 const CAPTURE_INTERVAL_MS = 125;
-const PREDICTION_INTERVAL_MS = 500;
+const PREDICTION_INTERVAL_MS = 1000;
+const ACCEPT_CONFIDENCE = 0.8;
+const REQUIRED_CONSECUTIVE_PREDICTIONS = 5;
 const frameBuffer = [];
-const predictionHistory = [];
 
 // The live video stream from the webcam.
 let stream = null;
@@ -22,18 +26,29 @@ let prediction = "...";
 let captureIntervalId = null;
 let predictionIntervalId = null;
 let predictionInFlight = false;
+let candidateLabel = null;
+let candidateCount = 0;
 
-function stableLabel(nextLabel) {
-  predictionHistory.push(nextLabel);
-  if (predictionHistory.length > 4) {
-    predictionHistory.shift();
+function showToast(message) {
+  if (!toastElement) return;
+  toastElement.textContent = message;
+  toastElement.classList.add("is-visible");
+  window.setTimeout(() => toastElement.classList.remove("is-visible"), 4000);
+}
+
+function acceptedPrediction(label, confidence) {
+  if (confidence < ACCEPT_CONFIDENCE) {
+    candidateLabel = null;
+    candidateCount = 0;
+    return false;
   }
-
-  const counts = predictionHistory.reduce((acc, label) => {
-    acc[label] = (acc[label] || 0) + 1;
-    return acc;
-  }, {});
-  return Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0];
+  if (label === candidateLabel) {
+    candidateCount += 1;
+  } else {
+    candidateLabel = label;
+    candidateCount = 1;
+  }
+  return candidateCount >= REQUIRED_CONSECUTIVE_PREDICTIONS;
 }
 
 async function startCamera() {
@@ -66,7 +81,8 @@ function stopCamera() {
   predictionIntervalId = null;
   predictionInFlight = false;
   frameBuffer.length = 0;
-  predictionHistory.length = 0;
+  candidateLabel = null;
+  candidateCount = 0;
   predictionElement.textContent = "Camera stopped";
   confidenceElement.textContent = "";
   overlayElement.textContent = "Camera stopped";
@@ -91,52 +107,65 @@ function captureFrame() {
   if (frameBuffer.length > SEQUENCE_LENGTH) {
     frameBuffer.shift();
   }
-
 }
 
 async function requestPrediction() {
   if (predictionInFlight || frameBuffer.length < SEQUENCE_LENGTH) {
     if (frameBuffer.length < SEQUENCE_LENGTH) {
-    statusElement.textContent = `Collecting sign frames... (${frameBuffer.length}/${SEQUENCE_LENGTH})`;
-    overlayElement.textContent = "Hold your hand steady";
+      statusElement.textContent = `Collecting sign frames... (${frameBuffer.length}/${SEQUENCE_LENGTH})`;
+      overlayElement.textContent = "Hold your hand steady";
     }
     return;
   }
 
   predictionInFlight = true;
+  processingIndicator.hidden = false;
   try {
     const response = await fetch("/predict", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ images: frameBuffer }),
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRF-Token": csrfToken,
+      },
+      body: JSON.stringify({ images: [...frameBuffer] }),
     });
     const data = await response.json();
 
-    if (data.error) {
-      statusElement.textContent = data.error;
-      overlayElement.textContent = data.error;
+    if (!response.ok || !data.success) {
+      const message = data.error || "Prediction request failed.";
+      statusElement.textContent = message;
+      overlayElement.textContent = message;
+      if (response.status === 401 || response.status === 403) {
+        showToast(message);
+      }
       return;
     }
 
-    prediction = stableLabel(data.label);
-    predictionElement.textContent = prediction;
-    const topText = (data.top || [])
+    const result = data.data;
+
+    const stable = acceptedPrediction(result.raw_label, result.confidence);
+    if (stable) {
+      prediction = result.raw_label;
+      predictionElement.textContent = prediction;
+    }
+    const topText = (result.top || [])
       .map((item) => `${item.label} ${(item.confidence * 100).toFixed(0)}%`)
       .join(" | ");
-    confidenceElement.textContent = data.is_confident
-      ? `Confidence: ${(data.confidence * 100).toFixed(1)}%`
+    confidenceElement.textContent = stable
+      ? `Confidence: ${(result.confidence * 100).toFixed(1)}%`
       : `Closest: ${topText}`;
-    overlayElement.textContent = data.is_confident
+    overlayElement.textContent = stable
       ? `Predicted: ${prediction}`
-      : "Hold sign steady";
-    statusElement.textContent = data.is_confident
+      : `Hold sign steady (${candidateCount}/${REQUIRED_CONSECUTIVE_PREDICTIONS})`;
+    statusElement.textContent = stable
       ? "Recognized a stable sign from the recent frame sequence."
-      : "Prediction is not confident yet. Keep your hand visible and steady.";
+      : "Waiting for five consecutive predictions above 80% confidence.";
   } catch (error) {
     statusElement.textContent = `Prediction error: ${error.message}`;
     overlayElement.textContent = "Prediction failed";
   } finally {
     predictionInFlight = false;
+    processingIndicator.hidden = true;
   }
 }
 

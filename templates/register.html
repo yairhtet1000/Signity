@@ -1,1 +1,56 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Register · Signity</title><link rel="stylesheet" href="/static/style.css"></head><body><main class="page-shell"><header class="hero small"><div><p class="eyebrow">Signity</p><h1>Create account</h1><p class="hero-text">An administrator must approve your account before you can use the interpreter.</p></div></header><section class="section"><div class="card"><form method="post"><label>Name <input name="name" required></label><label>Email <input name="email" type="email" required></label><label>Password <input name="password" type="password" minlength="8" required></label><button class="button button-primary" type="submit">Register</button></form><p>Already registered? <a href="/login">Sign in</a>.</p></div></section></main></body></html>
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Register · Signity</title>
+    <link rel="stylesheet" href="/static/style.css" />
+  </head>
+  <body>
+    <main class="page-shell">
+      <header class="hero small">
+        <div>
+          <p class="eyebrow">Signity</p>
+          <h1>Create account</h1>
+          <p class="hero-text">
+            Registration creates a pending account. An administrator must
+            approve it before interpreter access is enabled.
+          </p>
+        </div>
+      </header>
+      {% with messages=get_flashed_messages(with_categories=true) %}{% for
+      category, message in messages %}
+      <p class="toast toast-{{ category }}">{{ message }}</p>
+      {% endfor %}{% endwith %}
+      <section class="section">
+        <div class="card auth-card">
+          <form method="post">
+            <input
+              type="hidden"
+              name="csrf_token"
+              value="{{ csrf_token() }}"
+            /><label
+              >Name<input name="name" autocomplete="name" required /></label
+            ><label
+              >Email<input
+                name="email"
+                type="email"
+                autocomplete="email"
+                required /></label
+            ><label
+              >Password<input
+                name="password"
+                type="password"
+                minlength="8"
+                autocomplete="new-password"
+                required /></label
+            ><button class="button button-primary" type="submit">
+              Register
+            </button>
+          </form>
+          <p>Already registered? <a href="/login">Sign in</a>.</p>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

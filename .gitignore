@@ -1,6 +1,8 @@
 /datasets
 /venv
 /.venv*
+/.vscode
+/.kombai
 __pycache__/
 *.py[cod]
 /tf_env/
