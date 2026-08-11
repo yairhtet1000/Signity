@@ -9,13 +9,15 @@ const statusElement = document.getElementById("statusMessage");
 const overlayElement = document.getElementById("labelOverlay");
 const processingIndicator = document.getElementById("processingIndicator");
 const toastElement = document.getElementById("toast");
+const trackingDot = document.getElementById("trackingDot");
+const trackingText = document.getElementById("trackingText");
 const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
 
 const SEQUENCE_LENGTH = 20;
 const CAPTURE_INTERVAL_MS = 125;
 const PREDICTION_INTERVAL_MS = 1000;
-const ACCEPT_CONFIDENCE = 0.8;
-const REQUIRED_CONSECUTIVE_PREDICTIONS = 5;
+const ACCEPT_CONFIDENCE = 0.5;
+const REQUIRED_CONSECUTIVE_PREDICTIONS = 3;
 const frameBuffer = [];
 
 // The live video stream from the webcam.
@@ -28,6 +30,7 @@ let predictionIntervalId = null;
 let predictionInFlight = false;
 let candidateLabel = null;
 let candidateCount = 0;
+let lastConfirmedLabel = null;
 
 function showToast(message) {
   if (!toastElement) return;
@@ -49,6 +52,33 @@ function acceptedPrediction(label, confidence) {
     candidateCount = 1;
   }
   return candidateCount >= REQUIRED_CONSECUTIVE_PREDICTIONS;
+}
+
+function setTrackingStatus(validFrames, expectedFrames) {
+  const ratio = validFrames / expectedFrames;
+  const valid = ratio >= 0.8;
+  trackingDot?.classList.toggle("is-valid", valid);
+  trackingDot?.classList.toggle("is-invalid", !valid);
+  if (trackingText) trackingText.textContent = `${validFrames}/${expectedFrames} hand frames detected`;
+}
+
+async function confirmHistory(label) {
+  try {
+    await fetch("/history/confirm", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken },
+      body: JSON.stringify({ label }),
+    });
+  } catch (error) {
+    console.warn("Could not save interpretation history", error);
+  }
+}
+
+function speakLabel(label) {
+  const audio = new Audio(`/tts?text=${encodeURIComponent(`Detected sign ${label}`)}`);
+  audio.play().catch(() => {
+    statusElement.textContent = "Stable sign detected. Click Speak result if audio was blocked.";
+  });
 }
 
 async function startCamera() {
@@ -83,6 +113,7 @@ function stopCamera() {
   frameBuffer.length = 0;
   candidateLabel = null;
   candidateCount = 0;
+  lastConfirmedLabel = null;
   predictionElement.textContent = "Camera stopped";
   confidenceElement.textContent = "";
   overlayElement.textContent = "Camera stopped";
@@ -135,6 +166,7 @@ async function requestPrediction() {
       const message = data.error || "Prediction request failed.";
       statusElement.textContent = message;
       overlayElement.textContent = message;
+      if (response.status === 422) setTrackingStatus(0, SEQUENCE_LENGTH);
       if (response.status === 401 || response.status === 403) {
         showToast(message);
       }
@@ -142,11 +174,23 @@ async function requestPrediction() {
     }
 
     const result = data.data;
-
+    setTrackingStatus(result.valid_frames, SEQUENCE_LENGTH);
+    const fallback = result.top?.[0];
+    const displayLabel = result.label && result.label !== "Unsure"
+      ? result.label
+      : fallback && fallback.confidence >= 0.45
+        ? `${fallback.label} (${(fallback.confidence * 100).toFixed(0)}%)`
+        : "Unsure";
+    predictionElement.textContent = displayLabel;
+    predictionElement.classList.toggle("prediction-muted", result.label === "Unsure");
     const stable = acceptedPrediction(result.raw_label, result.confidence);
-    if (stable) {
+    if (stable && lastConfirmedLabel !== result.raw_label) {
       prediction = result.raw_label;
       predictionElement.textContent = prediction;
+      predictionElement.classList.remove("prediction-muted");
+      lastConfirmedLabel = result.raw_label;
+      confirmHistory(prediction);
+      speakLabel(prediction);
     }
     const topText = (result.top || [])
       .map((item) => `${item.label} ${(item.confidence * 100).toFixed(0)}%`)
@@ -156,10 +200,10 @@ async function requestPrediction() {
       : `Closest: ${topText}`;
     overlayElement.textContent = stable
       ? `Predicted: ${prediction}`
-      : `Hold sign steady (${candidateCount}/${REQUIRED_CONSECUTIVE_PREDICTIONS})`;
+      : `Candidate: ${displayLabel} (${candidateCount}/${REQUIRED_CONSECUTIVE_PREDICTIONS})`;
     statusElement.textContent = stable
       ? "Recognized a stable sign from the recent frame sequence."
-      : "Waiting for five consecutive predictions above 80% confidence.";
+      : "Live candidate shown. Hold the sign steady to confirm it.";
   } catch (error) {
     statusElement.textContent = `Prediction error: ${error.message}`;
     overlayElement.textContent = "Prediction failed";
@@ -183,12 +227,7 @@ async function speakPrediction() {
     return;
   }
 
-  const audio = new Audio(
-    `/tts?text=${encodeURIComponent(`Detected sign ${prediction}`)}`,
-  );
-  audio.play().catch((error) => {
-    statusElement.textContent = `Audio playback failed: ${error.message}`;
-  });
+  speakLabel(prediction);
 }
 
 startButton.addEventListener("click", startCamera);

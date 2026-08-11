@@ -54,7 +54,7 @@ BASE_DIR = Path(__file__).resolve().parent
 MODEL_PATH = BASE_DIR / "model.keras"
 LEGACY_MODEL_PATH = BASE_DIR / "model.h5"
 LABELS_PATH = BASE_DIR / "labels.npy"
-MIN_CONFIDENCE = float(os.environ.get("SIGNITY_MIN_CONFIDENCE", "0.55"))
+MIN_CONFIDENCE = float(os.environ.get("SIGNITY_MIN_CONFIDENCE", "0.50"))
 MIN_MARGIN = float(os.environ.get("SIGNITY_MIN_MARGIN", "0.02"))
 MIN_VALID_FRAME_RATIO = 0.80
 MAX_SEQUENCE_FRAMES = 32
@@ -706,23 +706,41 @@ def predict():
         float(prediction[top_indices[1]]) if len(top_indices) > 1 else 0.0
     )
     confidence = float(prediction[best_i])
-    is_confident = (
-        confidence >= MIN_CONFIDENCE and (confidence - second_confidence) >= MIN_MARGIN
-    )
+    meets_confidence = confidence >= MIN_CONFIDENCE
+    has_clear_margin = (confidence - second_confidence) >= MIN_MARGIN
 
     result = {
-        "label": str(label_classes[best_i]) if is_confident else "Unsure",
+        "label": str(label_classes[best_i]) if meets_confidence else "Unsure",
         "raw_label": str(label_classes[best_i]),
         "confidence": confidence,
-        "is_confident": is_confident,
+        "is_confident": meets_confidence,
+        "has_clear_margin": has_clear_margin,
         "top": top,
         "sequence_shape": list(input_tensor.shape),
         "valid_frames": valid_frames,
     }
     log_inference(sequence, prediction, result["raw_label"], confidence, valid_frames)
-    if is_confident and account["role"] == "user":
-        record_history(account["id"], result["raw_label"])
     return api_response(result)
+
+
+@app.post("/history/confirm")
+@approved_user_required(api=True)
+@csrf_required
+def confirm_history():
+    """Persist a label only after the browser's temporal stabilizer confirms it."""
+    payload = request.get_json(silent=True) or {}
+    label = str(payload.get("label", "")).strip()
+    if not label:
+        return api_error("A confirmed label is required.", 400)
+    try:
+        load_model_and_labels()
+    except (FileNotFoundError, ValueError):
+        return api_error("Model assets are unavailable.", 503)
+    if label not in {str(value) for value in label_classes}:
+        return api_error("Unknown label.", 400)
+    if g.account["role"] == "user":
+        record_history(g.account["id"], label)
+    return api_response({"label": label})
 
 
 @app.route("/tts")
