@@ -374,6 +374,12 @@ table th {
   color: var(--muted);
 }
 
+.prediction-muted { color: var(--muted); font-size: 2.1rem; }
+.tracking-status { position: absolute; top: 14px; left: 14px; display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 999px; background: rgba(15, 23, 42, .85); font-size: .8rem; z-index: 2; }
+.tracking-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--warning); }
+.tracking-dot.is-valid { background: var(--accent); box-shadow: 0 0 10px var(--accent); }
+.tracking-dot.is-invalid { background: var(--danger); }
+
 .instructions ul {
   padding-left: 18px;
   margin: 14px 0 0;
