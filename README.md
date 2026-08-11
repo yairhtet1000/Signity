@@ -164,6 +164,21 @@ Training runs for up to 80 epochs and stops early by default when validation
 loss no longer improves. The optimizer uses cosine learning-rate decay across
 the configured training steps.
 
+### Full-dataset training
+
+To rebuild landmark caches and train with every available image and word
+sample, activate the TensorFlow environment and run:
+
+```bash
+source tf_env/bin/activate
+python train.py --refresh-cache --max-images-per-class 0 --max-word-samples-per-class 0 --epochs 100
+```
+
+`--refresh-cache` re-extracts image landmarks using the current wrist-relative
+normalization. A limit of `0` means **no limit**, so both dataset arguments use
+all available samples. `--epochs 100` is the maximum; early stopping remains
+enabled and may complete sooner when validation loss stops improving.
+
 Useful options:
 
 ```bash
@@ -189,9 +204,11 @@ the word-sequence cache also refreshes automatically. The app can load a legacy
 will not match the new wrist-relative preprocessing. Retrain to create a
 compatible 20-frame `model.keras` before evaluating live accuracy.
 
-The current checked model was fine-tuned after the main run and validates at
-about 79.7% exact top-1 accuracy and 89.1% top-3 accuracy. The live app applies
-a confidence gate so displayed predictions validate above 80% accuracy.
+Validation accuracy does not guarantee the same result from a webcam. The live
+pipeline requires a 20-frame capture with at least 80% usable hand-landmark
+frames. It displays a candidate at 50% confidence, then confirms it only after
+three consecutive matching predictions. Confirmed signs are saved to history
+and the app attempts to speak them automatically.
 
 Training saves:
 
@@ -207,7 +224,7 @@ runs save `model.keras` and no longer emit Keras's legacy-format warning.
 python app.py
 ```
 
-Open `http://127.0.0.1:5000`.
+Open `http://127.0.0.1:5500`.
 
 ## Accounts, approval, and history
 
@@ -220,10 +237,12 @@ Create the first administrator before registering users:
 python manage.py create-admin --name "Admin Name" --email admin@example.com
 ```
 
-Then an administrator can sign in at `/login`, open `/admin`, and approve
-registered users. Unapproved users cannot open the live interpreter or call
-the prediction API. Each user's changed, confident interpretation is saved in
-their `/history` page. For stable logins across server restarts, set a secret:
+Then an administrator can sign in at `/login`, open `/admin`, and approve or
+reject registered users. Pending and rejected users cannot open the live
+interpreter, call the prediction API, or view history. Approval decisions and
+admin actions are timestamped. Each user's stabilized interpretation is saved
+to their `/history` page. For stable logins across server restarts, set a
+secret:
 
 ```bash
 export SIGNITY_SECRET_KEY="replace-with-a-long-random-secret"
@@ -235,6 +254,18 @@ export SIGNITY_SECRET_KEY="replace-with-a-long-random-secret"
 2. Allow webcam access.
 3. Keep one hand clearly in the frame.
 4. Hold the sign naturally while the app collects a 20-frame sequence.
-5. Click **Speak result** to hear the prediction.
+5. A candidate appears immediately when it reaches 50% confidence. Hold it
+   steady for three matching windows to confirm and speak it.
+6. Click **Speak result** to repeat the most recently confirmed sign.
 
-`gTTS` requires internet access when generating speech audio.
+`gTTS` requires internet access when generating speech audio. Some browsers
+block automatic audio; use **Speak result** if that happens.
+
+### Live inference diagnostics
+
+To print valid-frame counts, landmark/sequence shapes, probabilities, the
+predicted label, and confidence to the server console:
+
+```bash
+SIGNITY_INFERENCE_DEBUG=1 python app.py
+```
