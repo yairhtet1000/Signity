@@ -2,6 +2,10 @@
 
 A modular, Flask-based American Sign Language (ASL) interpreter using OpenCV, MediaPipe, TensorFlow (stacked LSTM), and Web Speech API / gTTS for real-time sign recognition and speech output.
 
+Designed to run seamlessly across OS platforms:
+- **Windows 11:** CPU execution (lightweight live inference & standard dataset training).
+- **Pop!_OS / Ubuntu Linux:** CPU or NVIDIA GPU acceleration (for fast full-dataset retraining).
+
 ---
 
 ## Modular Project Structure
@@ -42,6 +46,13 @@ python -m venv .venv
 source .venv/bin/activate
 ```
 
+On Windows (PowerShell):
+
+```powershell
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+```
+
 ### 2. Install dependencies
 
 ```bash
@@ -57,6 +68,16 @@ export SIGNITY_MIN_CONFIDENCE=0.50
 export SIGNITY_MIN_MARGIN=0.02
 export SIGNITY_MIN_VALID_FRAME_RATIO=0.40
 export SIGNITY_INFERENCE_DEBUG=1
+```
+
+On Windows (PowerShell):
+
+```powershell
+$env:SIGNITY_SECRET_KEY="replace-with-a-long-random-secret"
+$env:SIGNITY_MIN_CONFIDENCE="0.50"
+$env:SIGNITY_MIN_MARGIN="0.02"
+$env:SIGNITY_MIN_VALID_FRAME_RATIO="0.40"
+$env:SIGNITY_INFERENCE_DEBUG="1"
 ```
 
 ### 4. Initialize the database
@@ -227,3 +248,26 @@ python reset_admin.py
 ```
 
 This resets the primary admin password to `admin123`. Delete or secure this script after recovery.
+
+---
+
+## Platform Notes
+
+### Windows 11 (CPU-only)
+
+- Use the standard CPU build of TensorFlow.
+- Live inference runs on CPU; keep the webcam hand steady for reliable predictions.
+- Training works but is slower than Linux with GPU acceleration.
+
+### Pop!_OS / Ubuntu Linux (GPU accelerated)
+
+- Install the NVIDIA driver supplied by Pop!_OS.
+- Install TensorFlow with CUDA support:
+  ```bash
+  pip install "tensorflow[and-cuda]"
+  ```
+- Verify GPU availability:
+  ```bash
+  python -c "import tensorflow as tf; print(tf.config.list_physical_devices('GPU'))"
+  ```
+- GPU acceleration significantly speeds up full-dataset training and live inference.
