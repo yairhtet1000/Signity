@@ -1,58 +1,40 @@
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Sign in · Signity</title>
-    <link rel="stylesheet" href="/static/style.css" />
-  </head>
-  <body>
-    <main class="page-shell">
-      <header class="hero small">
-        <div>
-          <p class="eyebrow">Signity</p>
-          <h1>Sign in</h1>
-          <p class="hero-text">
-            Choose the correct account type. User accounts require admin
-            approval.
-          </p>
-        </div>
-      </header>
-      {% with messages=get_flashed_messages(with_categories=true) %}{% for
-      category, message in messages %}
-      <p class="toast toast-{{ category }}">{{ message }}</p>
-      {% endfor %}{% endwith %}
-      <section class="section">
-        <div class="card auth-card">
-          <form method="post">
-            <input
-              type="hidden"
-              name="csrf_token"
-              value="{{ csrf_token() }}"
-            /><label
-              >Email<input
-                name="email"
-                type="email"
-                autocomplete="email"
-                required /></label
-            ><label
-              >Password<input
-                name="password"
-                type="password"
-                autocomplete="current-password"
-                required /></label
-            ><label
-              >Account type<select name="role">
-                <option value="user">User</option>
-                <option value="admin">Admin</option>
-              </select></label
-            ><button class="button button-primary" type="submit">
-              Sign in
-            </button>
-          </form>
-          <p>Need an account? <a href="/register">Register</a>.</p>
-        </div>
-      </section>
-    </main>
-  </body>
-</html>
+{% extends "base.html" %}
+
+{% block title %}Sign in · Signity{% endblock %}
+{% block topbar_label %}Sign in{% endblock %}
+{% block body_class %}auth-page{% endblock %}
+
+{% block content %}
+<section class="auth-shell auth-choice" aria-labelledby="sign-in-title">
+  <div class="auth-context">
+    <div>
+      <span class="section-label">Signity / access</span>
+      <h1 id="sign-in-title">Choose your workspace.</h1>
+      <p>Sign in to translate live signs or manage account approvals and system access.</p>
+    </div>
+    <div class="auth-context-list">
+      <span><i class="ti ti-video" aria-hidden="true"></i>Live translation for approved users</span>
+      <span><i class="ti ti-shield-check" aria-hidden="true"></i>Approval tools for administrators</span>
+    </div>
+  </div>
+  <div class="auth-card">
+    <div class="auth-card-header">
+      <h2>Sign in</h2>
+      <p>Choose the account type that matches your Signity workspace.</p>
+    </div>
+    <div class="auth-choice-grid">
+      <a class="auth-choice-button" href="{{ url_for('auth.login_user') }}">
+        <i class="ti ti-user" aria-hidden="true"></i>
+        <strong>User sign in</strong>
+        <span>Open the live interpreter after approval.</span>
+      </a>
+      <a class="auth-choice-button" href="{{ url_for('auth.login_admin') }}">
+        <i class="ti ti-shield-lock" aria-hidden="true"></i>
+        <strong>Admin sign in</strong>
+        <span>Review users and manage access decisions.</span>
+      </a>
+    </div>
+    <p class="auth-card-footer">Need an account? <a class="auth-link" href="{{ url_for('auth.register') }}">Register</a>.</p>
+  </div>
+</section>
+{% endblock %}
