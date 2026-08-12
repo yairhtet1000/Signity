@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block title %}Admin sign in · Signity{% endblock %}
+{% block topbar_label %}Admin sign in{% endblock %}
+{% block body_class %}auth-page{% endblock %}
+
+{% block content %}
+<section class="auth-shell" aria-labelledby="admin-sign-in-title">
+  <div class="auth-context">
+    <div>
+      <span class="section-label">Signity / admin access</span>
+      <h1 id="admin-sign-in-title">Keep access intentional.</h1>
+      <p>Sign in to review pending accounts, approve users, and audit recent access decisions.</p>
+    </div>
+    <div class="auth-context-list">
+      <span><i class="ti ti-user-check" aria-hidden="true"></i>Review pending users</span>
+      <span><i class="ti ti-list-details" aria-hidden="true"></i>Audit recent decisions</span>
+    </div>
+  </div>
+  <div class="auth-card">
+    <div class="auth-card-header">
+      <h2>Admin sign in</h2>
+      <p>Use your administrator credentials to manage the Signity workspace.</p>
+    </div>
+    <form class="form-stack" method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+      <div class="form-field">
+        <label for="admin-email">Email</label>
+        <input id="admin-email" name="email" type="email" autocomplete="email" required />
+      </div>
+      <div class="form-field">
+        <label for="admin-password">Password</label>
+        <input id="admin-password" name="password" type="password" autocomplete="current-password" required />
+      </div>
+      <div class="form-actions">
+        <button class="button button-primary" type="submit"><i class="ti ti-shield-lock" aria-hidden="true"></i>Sign in</button>
+      </div>
+    </form>
+    <p class="auth-card-footer"><a class="auth-link" href="{{ url_for('auth.login_choice') }}">Back to sign in options</a></p>
+  </div>
+</section>
+{% endblock %}

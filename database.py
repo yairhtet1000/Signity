@@ -91,6 +91,9 @@ def initialize_database():
             connection.execute(
                 'UPDATE "UserHistory" SET interpretedText = interpretedTexts WHERE interpretedText IS NULL'
             )
+            connection.execute(
+                'UPDATE "UserHistory" SET interpretedTexts = interpretedText WHERE interpretedTexts IS NULL'
+            )
         connection.execute(
             'UPDATE "User" SET is_approved = 1, approval_status = "approved" '
             'WHERE id IN (SELECT userId FROM "UserApprove" WHERE COALESCE(decision, "approved") = "approved")'

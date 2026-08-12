@@ -1,67 +1,100 @@
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Signity ASL Interpreter</title>
-    <link rel="stylesheet" href="/static/style.css" />
-  </head>
-  <body>
-    <main class="page-shell">
-      <header class="hero">
-        <div>
-          <p class="eyebrow">Signity</p>
-          <h1>American Sign Language Interpreter</h1>
-          <p class="hero-text">
-            Real-time ASL recognition with OpenCV, MediaPipe hand tracking, a
-            stacked TensorFlow LSTM classifier, and gTTS speech output.
-          </p>
-          <div class="cta-row">
-            <a class="button button-primary" href="/live">Start interpreter</a>
-            <a class="button" href="#dataset">View dataset</a>
-          </div>
-        </div>
-        <aside class="hero-box">
-          {% if account %}
-          <p>Signed in as <strong>{{ account.name }}</strong>.</p>
-          {% if account.role == "admin" %}<a class="button" href="/admin"
-            >Admin dashboard</a
-          >{% elif account.approved %}<a class="button" href="/history"
-            >View history</a
-          >{% else %}
-          <p>Your account is awaiting approval.</p>
-          {% endif %}
-          <form method="post" action="/logout">
-            <input
-              type="hidden"
-              name="csrf_token"
-              value="{{ csrf_token() }}"
-            /><button class="button" type="submit">Sign out</button>
-          </form>
-          {% else %}
-          <p>
-            <a class="button" href="/login">Sign in</a>
-            <a class="button" href="/register">Register</a>
-          </p>
-          {% endif %}
-          <strong>
-            {{ "Model ready" if has_model else "Training needed" }}
-          </strong>
-          <p>
-            Static signs use the alphabet and digit image dataset. Dynamic word
-            signs use fixed-length temporal sequences from the pickle dataset.
-          </p>
-          <p>
-            <strong>{{ summary.total }}</strong> image samples and
-            <strong>{{ summary.words.total_samples }}</strong> word sequence
-            samples detected.
-          </p>
-        </aside>
-      </header>
+{% extends "base.html" %}
 
-      <footer class="footer">
-        <p>Built with OpenCV, MediaPipe, TensorFlow, Flask, and gTTS.</p>
-      </footer>
-    </main>
-  </body>
-</html>
+{% block title %}Overview · Signity{% endblock %}
+{% block topbar_label %}Overview{% endblock %}
+{% block body_class %}overview-page{% endblock %}
+
+{% block content %}
+<section class="page-heading">
+  <div class="page-heading-copy">
+    <span class="section-label">00 / workspace overview</span>
+    <h1>Make every sign understood.</h1>
+    <p>
+      Signity turns live American Sign Language into clear, confident speech with
+      hand tracking and a temporal recognition model.
+    </p>
+  </div>
+  <div class="page-heading-aside">
+    {% if account %}
+    <div class="page-actions">
+      {% if account.role == "admin" or account.approved %}
+      <a class="button button-primary" href="{{ url_for('predict.live') }}">
+        <i class="ti ti-video" aria-hidden="true"></i>Start interpreter
+      </a>
+      {% endif %}
+      <a class="button button-secondary" href="{{ url_for('main.dataset') }}">
+        View dataset
+      </a>
+    </div>
+    {% else %}
+    <div class="page-actions">
+      <a class="button button-primary" href="{{ url_for('auth.login_user') }}">User sign in</a>
+      <a class="button button-secondary" href="{{ url_for('auth.register') }}">Register</a>
+    </div>
+    {% endif %}
+  </div>
+</section>
+
+<section class="overview-grid" aria-label="Signity overview">
+  <article class="overview-hero">
+    <div>
+      <span class="section-label">Real-time translation</span>
+      <h2>Translate signs. Stay in the moment.</h2>
+      <p class="overview-hero-copy">
+        Frame one hand clearly, hold each sign steady, and let Signity read the
+        recent sequence before turning a confident result into speech.
+      </p>
+      <div class="cta-row">
+        {% if account and (account.role == "admin" or account.approved) %}
+        <a class="button button-primary" href="{{ url_for('predict.live') }}">
+          <i class="ti ti-player-play" aria-hidden="true"></i>Open live interpreter
+        </a>
+        {% else %}
+        <a class="button button-primary" href="{{ url_for('auth.login_user') }}">
+          <i class="ti ti-login-2" aria-hidden="true"></i>Sign in to interpret
+        </a>
+        {% endif %}
+        <a class="button button-dark" href="{{ url_for('main.dataset') }}">
+          <i class="ti ti-database" aria-hidden="true"></i>Explore the dataset
+        </a>
+      </div>
+    </div>
+    <div class="overview-hero-footer">
+      <span>
+        <span class="status-dot {{ 'is-ready' if has_model else 'is-pending' }}" aria-hidden="true"></span>
+        {{ "Model ready for live inference" if has_model else "Model training is required" }}
+      </span>
+      <span>OpenCV · MediaPipe · TensorFlow · gTTS</span>
+    </div>
+  </article>
+
+  <div class="metric-grid">
+    <article class="metric-card card metric-card-accent">
+      <div class="metric-label">
+        <span>Image samples</span>
+        <i class="ti ti-photo" aria-hidden="true"></i>
+      </div>
+      <strong class="metric-value">{{ summary.total }}</strong>
+      <p class="metric-copy">Static alphabet and digit examples available to the classifier.</p>
+    </article>
+    <article class="metric-card card">
+      <div class="metric-label">
+        <span>Word sequences</span>
+        <i class="ti ti-chart-line" aria-hidden="true"></i>
+      </div>
+      <strong class="metric-value">{{ summary.words.total_samples }}</strong>
+      <p class="metric-copy">Temporal landmark sequences used for dynamic word recognition.</p>
+    </article>
+    <article class="metric-card card">
+      <div class="metric-label">
+        <span>System status</span>
+        <i class="ti ti-{{ 'circle-check' if has_model else 'alert-triangle' }}" aria-hidden="true"></i>
+      </div>
+      <strong class="metric-value">{{ "Ready" if has_model else "Setup" }}</strong>
+      <p class="metric-copy">
+        {% if has_model %}Prediction assets are available for the current workspace.{% else %}Train the model before starting a live session.{% endif %}
+      </p>
+    </article>
+  </div>
+</section>
+{% endblock %}

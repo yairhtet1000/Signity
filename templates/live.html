@@ -1,87 +1,164 @@
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Live ASL Interpreter</title>
-    <meta name="csrf-token" content="{{ csrf_token() }}" />
-    <link rel="stylesheet" href="/static/style.css" />
-  </head>
-  <body>
-    <main class="page-shell">
-      <div id="toast" class="toast" role="status" aria-live="polite"></div>
-      <header class="hero small">
-        <div>
-          <p class="eyebrow">Live Interpreter</p>
-          <h1>ASL Sign Recognition</h1>
-          <p class="hero-text">
-            Allow webcam access, place one hand clearly in frame, and hold each
-            sign steady while the model reads the recent frame sequence.
-          </p>
-        </div>
-        <aside class="hero-box compact">
-          <strong>{{ "Ready" if has_model else "Model missing" }}</strong>
-          <p>
-            {% if has_model %} The API can load <code>model.keras</code> (or a
-            legacy <code>model.h5</code>) and <code>labels.npy</code>. {% else
-            %} Train the model first with <code>python train.py</code>. {% endif
-            %}
-          </p>
-        </aside>
-      </header>
+{% extends "base.html" %}
 
-      <section class="section live-grid">
-        <div class="card camera-card">
-          <div class="camera-wrapper">
-            <video id="camera" autoplay muted playsinline></video>
-            <div id="labelOverlay" class="label-overlay">Ready to sign</div>
-            <div class="tracking-status"><span id="trackingDot" class="tracking-dot"></span><span id="trackingText">Waiting for frame sequence</span></div>
-            <div id="processingIndicator" class="processing-indicator" hidden>
-              Processing…
-            </div>
-          </div>
-          <canvas id="snapshot" width="640" height="480"></canvas>
-          <div class="controls">
-            <button
-              id="startButton"
-              class="button button-primary"
-              type="button"
-            >
-              Start camera
-            </button>
-            <button id="stopButton" class="button" type="button">Stop</button>
-            <button id="speakButton" class="button" type="button">
-              Speak result
-            </button>
-          </div>
-        </div>
+{% block title %}Live interpreter · Signity{% endblock %}
+{% block topbar_label %}Live interpreter{% endblock %}
+{% block body_class %}live-page{% endblock %}
+{% block head %}<meta name="csrf-token" content="{{ csrf_token() }}" />{% endblock %}
 
-        <aside class="card stats-card">
-          <div class="prediction-box">
-            <h2>Prediction</h2>
-            <div id="prediction" class="prediction-value">
-              Waiting for camera...
-            </div>
-            <div id="confidence" class="prediction-confidence"></div>
-          </div>
-          <div class="instructions">
-            <h3>Tips</h3>
-            <ul>
-              <li>Use a bright room and a plain background.</li>
-              <li>Keep the full hand inside the camera view.</li>
-              <li>
-                Pause briefly between signs so the frame buffer stabilizes.
-              </li>
-            </ul>
-          </div>
-          <div class="status" id="statusMessage"></div>
-        </aside>
-      </section>
+{% block content %}
+<div id="toast" class="toast toast-live" role="status" aria-live="polite" hidden></div>
+<section class="page-heading live-heading">
+  <div class="page-heading-copy">
+    <span class="section-label">01 / live recognition</span>
+    <h1>ASL sign recognition</h1>
+    <p>
+      Frame a single hand clearly, hold the sign steady, and let the temporal model
+      translate the recent sequence.
+    </p>
+  </div>
+  <div class="page-heading-aside">
+    <span class="status-badge status-{{ 'ready' if has_model else 'pending' }}">
+      <span class="status-dot" aria-hidden="true"></span>
+      {{ "Model ready · 20-frame sequence" if has_model else "Model assets unavailable" }}
+    </span>
+    <div class="status-legend" aria-label="Recognition status legend">
+      <span><span class="legend-dot is-detected" aria-hidden="true"></span>Hands detected</span>
+      <span><span class="legend-dot is-processing" aria-hidden="true"></span>Processing</span>
+      <span><span class="legend-dot is-low" aria-hidden="true"></span>Low confidence</span>
+    </div>
+  </div>
+</section>
 
-      <footer class="footer">
-        <a class="button button-secondary" href="/">Back to home</a>
-      </footer>
-    </main>
-    <script src="/static/app.js"></script>
-  </body>
-</html>
+<section class="live-grid" aria-label="Live interpreter workspace">
+  <article class="camera-card">
+    <header class="camera-card-header">
+      <div>
+        <strong>Camera feed</strong>
+        <small>Hand tracking viewport</small>
+      </div>
+      <span class="status-badge status-neutral"><i class="ti ti-scan" aria-hidden="true"></i>Live inference</span>
+    </header>
+
+    <div class="camera-wrapper">
+      <video id="camera" autoplay muted playsinline aria-label="Live camera feed"></video>
+      <div class="camera-guide" aria-hidden="true"></div>
+      <div id="labelOverlay" class="label-overlay">Ready to sign</div>
+      <div class="tracking-status" role="status" aria-live="polite">
+        <span id="trackingDot" class="tracking-dot" aria-hidden="true"></span>
+        <span id="trackingText">Waiting for frame sequence</span>
+      </div>
+      <div id="processingIndicator" class="processing-indicator" role="status" aria-live="polite" hidden>
+        <i class="ti ti-loader-2" aria-hidden="true"></i>Processing latest frames
+      </div>
+      <span class="camera-sequence"><i class="ti ti-stack-2" aria-hidden="true"></i>{{ expected_sequence_length or 20 }}-frame sequence</span>
+    </div>
+
+    <canvas id="snapshot" width="640" height="480" aria-hidden="true"></canvas>
+
+    <div class="controls" aria-label="Camera controls">
+      <button id="startButton" class="button button-primary" type="button">
+        <i class="ti ti-player-play" aria-hidden="true"></i>Start camera
+      </button>
+      <button id="stopButton" class="button button-dark" type="button">
+        <i class="ti ti-square" aria-hidden="true"></i>Stop
+      </button>
+      <button id="speakButton" class="button speak-toggle" type="button" aria-pressed="false">
+        <span class="speak-label"><i class="ti ti-volume" aria-hidden="true"></i>Speak result</span>
+        <span class="toggle-state">Off</span>
+        <span class="toggle-track" aria-hidden="true"><span class="toggle-thumb"></span></span>
+      </button>
+    </div>
+  </article>
+
+  <aside class="prediction-panel card" aria-label="Prediction output">
+    <header class="prediction-header">
+      <div>
+        <div class="panel-kicker">Live prediction</div>
+        <h2>Current prediction</h2>
+      </div>
+      <span class="status-badge status-success"><span class="status-dot" aria-hidden="true"></span>Stable sign</span>
+    </header>
+
+    <div id="prediction" class="prediction-value" aria-live="polite">Waiting for camera...</div>
+    <div class="prediction-meta">
+      <span id="confidence" class="confidence-badge" aria-live="polite"></span>
+    </div>
+    <p class="prediction-description">
+      Hold the sign steady for one more beat so the model can confirm the recent frame sequence.
+    </p>
+
+    <section class="prediction-section" aria-labelledby="closest-matches-title">
+      <div class="prediction-section-heading">
+        <h3 id="closest-matches-title">Top 3 closest matches</h3>
+        <span>Model output</span>
+      </div>
+      <div id="topPredictions" class="top-predictions" role="list" aria-live="polite"></div>
+    </section>
+
+    <section class="instructions" aria-labelledby="operating-tips-title">
+      <h3 id="operating-tips-title">Operating tips</h3>
+      <ul class="tip-list">
+        <li><i class="ti ti-sun" aria-hidden="true"></i><span>Use a bright room and a plain background.</span></li>
+        <li><i class="ti ti-hand-stop" aria-hidden="true"></i><span>Keep the full hand inside the camera view.</span></li>
+        <li><i class="ti ti-clock-pause" aria-hidden="true"></i><span>Pause briefly between signs so the buffer can stabilize.</span></li>
+      </ul>
+    </section>
+
+    <div class="status-message" id="statusMessage" role="status" aria-live="polite"></div>
+    {% if not has_model %}
+    <div class="inline-alert inline-alert-warning" role="alert">
+      <i class="ti ti-alert-triangle" aria-hidden="true"></i>
+      <span>Train the model with <code>python train.py</code> before starting a live session.</span>
+    </div>
+    {% endif %}
+  </aside>
+</section>
+
+<section class="surface-map" aria-labelledby="surface-map-title">
+  <div class="surface-map-heading">
+    <div>
+      <span class="section-label">Reusable page patterns</span>
+      <h2 id="surface-map-title">System surface map</h2>
+    </div>
+    <p>One visual language across Signity.</p>
+  </div>
+  <article class="surface-map-card card">
+    <div class="surface-card-header">
+      <span class="surface-card-title"><i class="ti ti-database" aria-hidden="true"></i>Dataset</span>
+      <i class="ti ti-external-link" aria-hidden="true"></i>
+    </div>
+    <p>Source-ledger treatment for Kaggle, Google Drive, static signs, and dynamic sequences.</p>
+    <a href="{{ url_for('main.dataset') }}">View dataset <i class="ti ti-arrow-up-right" aria-hidden="true"></i></a>
+  </article>
+  <article class="surface-map-card card">
+    <div class="surface-card-header">
+      <span class="surface-card-title"><i class="ti ti-history" aria-hidden="true"></i>History</span>
+      <i class="ti ti-clock" aria-hidden="true"></i>
+    </div>
+    <p>Compact timestamped activity rows keep confirmed interpretations easy to scan.</p>
+    {% if account.role == 'user' and account.approved %}
+    <a href="{{ url_for('predict.history') }}">Open history <i class="ti ti-arrow-up-right" aria-hidden="true"></i></a>
+    {% else %}
+    <span class="surface-card-note">Available for approved users</span>
+    {% endif %}
+  </article>
+  <article class="surface-map-card card">
+    <div class="surface-card-header">
+      <span class="surface-card-title"><i class="ti ti-shield-check" aria-hidden="true"></i>Admin / auth</span>
+      <i class="ti ti-users" aria-hidden="true"></i>
+    </div>
+    <p>Approval workflows and focused sign-in forms use explicit status language.</p>
+    {% if account.role == 'admin' %}
+    <a href="{{ url_for('admin.admin_dashboard') }}">Open admin <i class="ti ti-arrow-up-right" aria-hidden="true"></i></a>
+    {% else %}
+    <a href="{{ url_for('profile.edit_profile') }}">Open profile <i class="ti ti-arrow-up-right" aria-hidden="true"></i></a>
+    {% endif %}
+  </article>
+</section>
+
+<script>
+  const CSRF_TOKEN = "{{ csrf_token() }}";
+  window.EXPECTED_SEQUENCE_LENGTH = Number("{{ expected_sequence_length or 20 }}");
+</script>
+<script src="{{ url_for('static', filename='app.js') }}"></script>
+{% endblock %}

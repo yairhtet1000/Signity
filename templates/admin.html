@@ -1,102 +1,91 @@
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Admin · Signity</title>
-    <link rel="stylesheet" href="/static/style.css" />
-  </head>
-  <body>
-    <main class="page-shell">
-      <header class="hero small">
-        <div>
-          <p class="eyebrow">Signity admin</p>
-          <h1>Approval dashboard</h1>
-          <p class="hero-text">
-            Review pending accounts and audit recent decisions.
-          </p>
+{% extends "base.html" %}
+
+{% block title %}Admin · Signity{% endblock %}
+{% block topbar_label %}Approval dashboard{% endblock %}
+{% block body_class %}admin-page{% endblock %}
+
+{% block content %}
+<section class="page-heading">
+  <div class="page-heading-copy">
+    <span class="section-label">04 / access control</span>
+    <h1>Approval dashboard</h1>
+    <p>Review pending accounts and keep a concise audit trail of recent access decisions.</p>
+  </div>
+  <div class="page-heading-aside">
+    <span class="status-badge status-ready"><span class="status-dot" aria-hidden="true"></span>Admin workspace</span>
+  </div>
+</section>
+
+<section class="admin-grid" aria-label="Admin approval workspace">
+  <article class="admin-card card">
+    <header class="admin-card-header">
+      <h2>Pending users <span class="badge-pending">Pending</span></h2>
+      <i class="ti ti-user-check" aria-hidden="true"></i>
+    </header>
+    {% if pending %}
+    <ul class="approval-list">
+      {% for user in pending %}
+      <li class="approval-row">
+        <div class="approval-copy">
+          <strong>{{ user.name }}</strong>
+          <small>{{ user.email }} · {{ user.created_at }}</small>
         </div>
-        <a class="button" href="/">Home</a>
-      </header>
-      {% with messages=get_flashed_messages(with_categories=true) %}{% for
-      category, message in messages %}
-      <p class="toast toast-{{ category }}">{{ message }}</p>
-      {% endfor %}{% endwith %}
-      <section class="section grid-2">
-        <div class="card">
-          <h2>
-            Pending users <span class="badge badge-pending">Pending</span>
-          </h2>
-          {% if pending %}
-          <ul class="stack-list">
-            {% for user in pending %}
-            <li>
-              <div>
-                <strong>{{ user.name }}</strong><br /><small
-                  >{{ user.email }} · {{ user.created_at }}</small
-                >
-              </div>
-              <div class="inline-actions">
-                <form method="post" action="/admin/users/{{ user.id }}/approve">
-                  <input
-                    type="hidden"
-                    name="csrf_token"
-                    value="{{ csrf_token() }}"
-                  /><button class="button button-primary" type="submit">
-                    Approve
-                  </button>
-                </form>
-                <form method="post" action="/admin/users/{{ user.id }}/reject">
-                  <input
-                    type="hidden"
-                    name="csrf_token"
-                    value="{{ csrf_token() }}"
-                  /><button class="button button-danger" type="submit">
-                    Reject
-                  </button>
-                </form>
-              </div>
-            </li>
-            {% endfor %}
-          </ul>
-          {% else %}
-          <div class="empty-state">
-            <strong>All caught up</strong>
-            <p>There are no pending user approvals.</p>
-          </div>
-          {% endif %}
+        <div class="inline-actions">
+          <form method="post" action="{{ url_for('admin.approve_user', user_id=user.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+            <button class="button button-primary" type="submit"><i class="ti ti-check" aria-hidden="true"></i>Approve</button>
+          </form>
+          <form method="post" action="{{ url_for('admin.reject_user', user_id=user.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+            <button class="button button-danger" type="submit"><i class="ti ti-x" aria-hidden="true"></i>Reject</button>
+          </form>
         </div>
-        <div class="card">
-          <h2>Activity feed</h2>
-          {% if activity %}
-          <ul class="stack-list">
-            {% for item in activity %}
-            <li>
-              <div>
-                <strong>{{ item.action }}</strong><br /><small
-                  >{{ item.admin_name }} · {{ item.timestamp }}</small
-                >
-              </div>
-            </li>
-            {% endfor %}
-          </ul>
-          <nav class="pagination">
-            {% if page > 1 %}<a class="button" href="/admin?page={{ page - 1 }}"
-              >Newer</a
-            >{% endif %}{% if has_next %}<a
-              class="button"
-              href="/admin?page={{ page + 1 }}"
-              >Older</a
-            >{% endif %}
-          </nav>
-          {% else %}
-          <div class="empty-state">
-            <strong>No activity yet</strong>
-            <p>Approval actions will appear here.</p>
-          </div>
-          {% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <div class="empty-state">
+      <i class="ti ti-circle-check" aria-hidden="true"></i>
+      <strong>All caught up</strong>
+      <p>There are no pending user approvals.</p>
+    </div>
+    {% endif %}
+  </article>
+
+  <article class="admin-card card">
+    <header class="admin-card-header">
+      <h2>Activity feed</h2>
+      <i class="ti ti-activity" aria-hidden="true"></i>
+    </header>
+    {% if activity %}
+    <ul class="activity-list">
+      {% for item in activity %}
+      <li class="activity-row">
+        <span class="activity-marker" aria-hidden="true"><i class="ti ti-history"></i></span>
+        <div class="activity-copy">
+          <strong>{{ item.action }}</strong>
+          <small>{{ item.admin_name }} · <time datetime="{{ item.timestamp }}">{{ item.timestamp }}</time></small>
         </div>
-      </section>
-    </main>
-  </body>
-</html>
+      </li>
+      {% endfor %}
+    </ul>
+    <nav class="pagination" aria-label="Activity pagination">
+      {% if page > 1 %}
+      <a class="button button-secondary button-compact" href="{{ url_for('admin.admin_dashboard', page=page - 1) }}"><i class="ti ti-arrow-left" aria-hidden="true"></i>Newer</a>
+      {% else %}
+      <span></span>
+      {% endif %}
+      {% if has_next %}
+      <a class="button button-secondary button-compact" href="{{ url_for('admin.admin_dashboard', page=page + 1) }}">Older<i class="ti ti-arrow-right" aria-hidden="true"></i></a>
+      {% endif %}
+    </nav>
+    {% else %}
+    <div class="empty-state">
+      <i class="ti ti-activity-heartbeat" aria-hidden="true"></i>
+      <strong>No activity yet</strong>
+      <p>Approval actions will appear here.</p>
+    </div>
+    {% endif %}
+  </article>
+</section>
+{% endblock %}

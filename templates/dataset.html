@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+
+{% block title %}Dataset · Signity{% endblock %}
+{% block topbar_label %}Dataset{% endblock %}
+{% block body_class %}dataset-page{% endblock %}
+
+{% block content %}
+<section class="page-heading">
+  <div class="page-heading-copy">
+    <span class="section-label">02 / capability ledger</span>
+    <h1>Training dataset</h1>
+    <p>
+      Signity combines public static sign imagery with temporal hand-landmark sequences
+      so the model can recognize both individual letters and dynamic words.
+    </p>
+  </div>
+  <div class="page-heading-aside">
+    <a
+      class="button button-primary"
+      href="https://drive.google.com/file/d/1SSoq6TQatHlbmkETgLmsi4eCp_hFMp2D/view?usp=sharing"
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      <i class="ti ti-external-link" aria-hidden="true"></i>Open dataset source
+    </a>
+  </div>
+</section>
+
+<section class="ledger-card card" aria-labelledby="dataset-sources-title">
+  <div class="ledger-intro">
+    <div>
+      <span class="section-label">Dataset sources</span>
+      <h2 id="dataset-sources-title">A clear ledger for what Signity learns from.</h2>
+      <p>
+        Our training data combines static alphabet/digit images and dynamic word-sequence
+        captures. Both sources are publicly accessible and freely redistributable under
+        their respective licenses.
+      </p>
+    </div>
+    <a
+      class="button button-secondary"
+      href="https://drive.google.com/file/d/1SSoq6TQatHlbmkETgLmsi4eCp_hFMp2D/view?usp=sharing"
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      View external source <i class="ti ti-arrow-up-right" aria-hidden="true"></i>
+    </a>
+  </div>
+
+  <dl class="ledger">
+    <div class="ledger-row">
+      <dt class="ledger-label"><i class="ti ti-photo" aria-hidden="true"></i>Static signs</dt>
+      <dd class="ledger-detail">
+        Image-based classification for the ASL alphabet and digits, captured as individual
+        examples for spatial hand-shape recognition.
+      </dd>
+      <dd class="ledger-meta"><strong>Kaggle</strong><span>Image classification</span></dd>
+    </div>
+    <div class="ledger-row">
+      <dt class="ledger-label"><i class="ti ti-timeline-event" aria-hidden="true"></i>Dynamic signs</dt>
+      <dd class="ledger-detail">
+        Temporal hand-landmark sequences for word-level recognition, sampled into fixed-length
+        frame buffers before inference.
+      </dd>
+      <dd class="ledger-meta"><strong>Google Drive</strong><span>Sequence model input</span></dd>
+    </div>
+  </dl>
+
+  <div class="dataset-note">
+    <i class="ti ti-info-circle" aria-hidden="true"></i>
+    <span>Static and dynamic sources are kept distinct so each model path can be evaluated against the right kind of sign movement.</span>
+  </div>
+</section>
+{% endblock %}
