@@ -79,7 +79,9 @@ def initialize_database():
         for table in ("Admin", "User"):
             _add_column(connection, table, "created_at TEXT")
         _add_column(connection, "User", "is_approved INTEGER NOT NULL DEFAULT 0")
-        _add_column(connection, "User", "approval_status TEXT NOT NULL DEFAULT 'pending'")
+        _add_column(
+            connection, "User", "approval_status TEXT NOT NULL DEFAULT 'pending'"
+        )
         _add_column(connection, "AdminActivity", "timestamp TEXT")
         _add_column(connection, "UserApprove", "decision TEXT")
         _add_column(connection, "UserApprove", "timestamp TEXT")
@@ -98,10 +100,24 @@ def initialize_database():
             'UPDATE "User" SET is_approved = 1, approval_status = "approved" '
             'WHERE id IN (SELECT userId FROM "UserApprove" WHERE COALESCE(decision, "approved") = "approved")'
         )
-        connection.execute('UPDATE "User" SET approval_status = CASE WHEN is_approved = 1 THEN "approved" ELSE COALESCE(approval_status, "pending") END')
-        connection.execute('UPDATE "UserHistory" SET timestamp = COALESCE(timestamp, CURRENT_TIMESTAMP)')
-        connection.execute('UPDATE "AdminActivity" SET timestamp = COALESCE(timestamp, CURRENT_TIMESTAMP)')
-        connection.execute('UPDATE "UserApprove" SET decision = COALESCE(decision, "approved"), timestamp = COALESCE(timestamp, CURRENT_TIMESTAMP)')
-        connection.execute('CREATE INDEX IF NOT EXISTS idx_user_status ON "User" (approval_status)')
-        connection.execute('CREATE INDEX IF NOT EXISTS idx_history_user_time ON "UserHistory" (userId, timestamp DESC)')
-        connection.execute('CREATE INDEX IF NOT EXISTS idx_activity_time ON "AdminActivity" (timestamp DESC)')
+        connection.execute(
+            'UPDATE "User" SET approval_status = CASE WHEN is_approved = 1 THEN "approved" ELSE COALESCE(approval_status, "pending") END'
+        )
+        connection.execute(
+            'UPDATE "UserHistory" SET timestamp = COALESCE(timestamp, CURRENT_TIMESTAMP)'
+        )
+        connection.execute(
+            'UPDATE "AdminActivity" SET timestamp = COALESCE(timestamp, CURRENT_TIMESTAMP)'
+        )
+        connection.execute(
+            'UPDATE "UserApprove" SET decision = COALESCE(decision, "approved"), timestamp = COALESCE(timestamp, CURRENT_TIMESTAMP)'
+        )
+        connection.execute(
+            'CREATE INDEX IF NOT EXISTS idx_user_status ON "User" (approval_status)'
+        )
+        connection.execute(
+            'CREATE INDEX IF NOT EXISTS idx_history_user_time ON "UserHistory" (userId, timestamp DESC)'
+        )
+        connection.execute(
+            'CREATE INDEX IF NOT EXISTS idx_activity_time ON "AdminActivity" (timestamp DESC)'
+        )

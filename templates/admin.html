@@ -1,18 +1,19 @@
-{% extends "base.html" %}
-
-{% block title %}Admin · Signity{% endblock %}
-{% block topbar_label %}Approval dashboard{% endblock %}
-{% block body_class %}admin-page{% endblock %}
-
-{% block content %}
+{% extends "base.html" %} {% block title %}Admin · Signity{% endblock %} {%
+block topbar_label %}Approval dashboard{% endblock %} {% block body_class
+%}admin-page{% endblock %} {% block content %}
 <section class="page-heading">
   <div class="page-heading-copy">
     <span class="section-label">04 / access control</span>
     <h1>Approval dashboard</h1>
-    <p>Review pending accounts and keep a concise audit trail of recent access decisions.</p>
+    <p>
+      Review pending accounts and keep a concise audit trail of recent access
+      decisions.
+    </p>
   </div>
   <div class="page-heading-aside">
-    <span class="status-badge status-ready"><span class="status-dot" aria-hidden="true"></span>Admin workspace</span>
+    <span class="status-badge status-ready"
+      ><span class="status-dot" aria-hidden="true"></span>Admin workspace</span
+    >
   </div>
 </section>
 
@@ -31,13 +32,23 @@
           <small>{{ user.email }} · {{ user.created_at }}</small>
         </div>
         <div class="inline-actions">
-          <form method="post" action="{{ url_for('admin.approve_user', user_id=user.id) }}">
+          <form
+            method="post"
+            action="{{ url_for('admin.approve_user', user_id=user.id) }}"
+          >
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-            <button class="button button-primary" type="submit"><i class="ti ti-check" aria-hidden="true"></i>Approve</button>
+            <button class="button button-primary" type="submit">
+              <i class="ti ti-check" aria-hidden="true"></i>Approve
+            </button>
           </form>
-          <form method="post" action="{{ url_for('admin.reject_user', user_id=user.id) }}">
+          <form
+            method="post"
+            action="{{ url_for('admin.reject_user', user_id=user.id) }}"
+          >
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-            <button class="button button-danger" type="submit"><i class="ti ti-x" aria-hidden="true"></i>Reject</button>
+            <button class="button button-danger" type="submit">
+              <i class="ti ti-x" aria-hidden="true"></i>Reject
+            </button>
           </form>
         </div>
       </li>
@@ -61,22 +72,36 @@
     <ul class="activity-list">
       {% for item in activity %}
       <li class="activity-row">
-        <span class="activity-marker" aria-hidden="true"><i class="ti ti-history"></i></span>
+        <span class="activity-marker" aria-hidden="true"
+          ><i class="ti ti-history"></i
+        ></span>
         <div class="activity-copy">
           <strong>{{ item.action }}</strong>
-          <small>{{ item.admin_name }} · <time datetime="{{ item.timestamp }}">{{ item.timestamp }}</time></small>
+          <small
+            >{{ item.admin_name }} ·
+            <time datetime="{{ item.timestamp }}"
+              >{{ item.timestamp }}</time
+            ></small
+          >
         </div>
       </li>
       {% endfor %}
     </ul>
     <nav class="pagination" aria-label="Activity pagination">
       {% if page > 1 %}
-      <a class="button button-secondary button-compact" href="{{ url_for('admin.admin_dashboard', page=page - 1) }}"><i class="ti ti-arrow-left" aria-hidden="true"></i>Newer</a>
+      <a
+        class="button button-secondary button-compact"
+        href="{{ url_for('admin.admin_dashboard', page=page - 1) }}"
+        ><i class="ti ti-arrow-left" aria-hidden="true"></i>Newer</a
+      >
       {% else %}
       <span></span>
-      {% endif %}
-      {% if has_next %}
-      <a class="button button-secondary button-compact" href="{{ url_for('admin.admin_dashboard', page=page + 1) }}">Older<i class="ti ti-arrow-right" aria-hidden="true"></i></a>
+      {% endif %} {% if has_next %}
+      <a
+        class="button button-secondary button-compact"
+        href="{{ url_for('admin.admin_dashboard', page=page + 1) }}"
+        >Older<i class="ti ti-arrow-right" aria-hidden="true"></i
+      ></a>
       {% endif %}
     </nav>
     {% else %}

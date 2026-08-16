@@ -1,10 +1,6 @@
-{% extends "base.html" %}
-
-{% block title %}Edit profile · Signity{% endblock %}
-{% block topbar_label %}Edit profile{% endblock %}
-{% block body_class %}settings-page{% endblock %}
-
-{% block content %}
+{% extends "base.html" %} {% block title %}Edit profile · Signity{% endblock %}
+{% block topbar_label %}Edit profile{% endblock %} {% block body_class
+%}settings-page{% endblock %} {% block content %}
 <section class="page-heading">
   <div class="page-heading-copy">
     <span class="section-label">05 / account settings</span>
@@ -18,31 +14,57 @@
     <div>
       <span class="section-label">Profile identity</span>
       <h1 id="profile-settings-title">Your workspace, clearly labeled.</h1>
-      <p>Update the name and email used for your Signity account and approval records.</p>
+      <p>
+        Update the name and email used for your Signity account and approval
+        records.
+      </p>
     </div>
     <div class="settings-context-links">
-      <a href="{{ url_for('profile.change_password') }}"><i class="ti ti-lock" aria-hidden="true"></i>Change password</a>
-      <a href="{{ url_for('main.dataset') }}"><i class="ti ti-database" aria-hidden="true"></i>View dataset</a>
+      <a href="{{ url_for('profile.change_password') }}"
+        ><i class="ti ti-lock" aria-hidden="true"></i>Change password</a
+      >
+      <a href="{{ url_for('main.dataset') }}"
+        ><i class="ti ti-database" aria-hidden="true"></i>View dataset</a
+      >
     </div>
   </div>
   <div class="settings-card">
     <div class="auth-card-header">
       <h2>Profile details</h2>
-      <p>These details are used to identify your sessions and account activity.</p>
+      <p>
+        These details are used to identify your sessions and account activity.
+      </p>
     </div>
     <form class="form-stack" method="post">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
       <div class="form-field">
         <label for="profile-name">Name</label>
-        <input id="profile-name" name="name" value="{{ account.name }}" autocomplete="name" required />
+        <input
+          id="profile-name"
+          name="name"
+          value="{{ account.name }}"
+          autocomplete="name"
+          required
+        />
       </div>
       <div class="form-field">
         <label for="profile-email">Email</label>
-        <input id="profile-email" name="email" type="email" value="{{ account.email }}" autocomplete="email" required />
+        <input
+          id="profile-email"
+          name="email"
+          type="email"
+          value="{{ account.email }}"
+          autocomplete="email"
+          required
+        />
       </div>
       <div class="form-actions">
-        <button class="button button-primary" type="submit"><i class="ti ti-device-floppy" aria-hidden="true"></i>Save changes</button>
-        <a class="button button-ghost" href="{{ url_for('main.index') }}">Cancel</a>
+        <button class="button button-primary" type="submit">
+          <i class="ti ti-device-floppy" aria-hidden="true"></i>Save changes
+        </button>
+        <a class="button button-ghost" href="{{ url_for('main.index') }}"
+          >Cancel</a
+        >
       </div>
     </form>
   </div>

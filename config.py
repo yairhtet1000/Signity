@@ -20,9 +20,7 @@ LABELS_PATH = BASE_DIR / "labels.npy"
 TASK_MODEL_PATH = BASE_DIR / "models" / "hand_landmarker.task"
 
 # Database
-DATABASE_PATH = Path(
-    os.environ.get("SIGNITY_DATABASE", BASE_DIR / "signity.db")
-)
+DATABASE_PATH = Path(os.environ.get("SIGNITY_DATABASE", BASE_DIR / "signity.db"))
 
 # Flask / session security
 SECRET_KEY = os.environ.get("SIGNITY_SECRET_KEY") or secrets.token_urlsafe(32)
@@ -34,4 +32,4 @@ MAX_CONTENT_LENGTH = 12 * 1024 * 1024
 # Server defaults
 DEFAULT_HOST = os.environ.get("SIGNITY_HOST", "127.0.0.1")
 DEFAULT_PORT = int(os.environ.get("SIGNITY_PORT", "5500"))
-FLASK_DEBUG = os.environ.get("FLASK_DEBUG") == "1"
+FLASK_DEBUG = os.environ.get("FLASK_DEBUG", "1") == "1"

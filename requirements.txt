@@ -6,3 +6,6 @@ gtts
 numpy
 pandas
 scikit-learn
+matplotlib
+seaborn
+tqdm

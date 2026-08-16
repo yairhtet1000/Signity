@@ -1,11 +1,16 @@
 import base64
 import json
+import os
 import pickle
+import platform
+import sys
+from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
 import cv2
 import mediapipe as mp
 import numpy as np
+from tqdm import tqdm
 
 BASE_DIR = Path(__file__).resolve().parent
 DATASETS_DIR = BASE_DIR / "datasets"
@@ -31,6 +36,11 @@ SINGLE_HAND_FEATURE_DIM = HAND_LANDMARKS * LANDMARK_VALUES
 FEATURE_DIM = MAX_HANDS * SINGLE_HAND_FEATURE_DIM
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
 CACHE_VERSION = 4
+
+
+def get_mediapipe_delegate():
+    """Return the CPU delegate for stable, portable MediaPipe extraction."""
+    return mp.tasks.BaseOptions.Delegate.CPU
 
 
 def sort_label(label):
@@ -200,6 +210,7 @@ def cache_is_fresh(cache_path, source_dir, extensions=None):
 
 
 def make_static_hands():
+    """Create a simple CPU-based MediaPipe hands extractor for dataset loading."""
     try:
         return mp.solutions.hands.Hands(
             static_image_mode=True,
@@ -207,8 +218,10 @@ def make_static_hands():
             min_detection_confidence=0.45,
         )
     except Exception:
+        pass
+
+    try:
         from mediapipe.tasks.python import vision as mp_tasks_vision
-        from mediapipe.tasks.python.core import base_options as mp_base_options
         from mediapipe.tasks.python.vision.core import (
             image as mp_image_module,
         )
@@ -218,12 +231,17 @@ def make_static_hands():
 
         task_path = BASE_DIR / "models" / "hand_landmarker.task"
         if not task_path.exists():
-            raise FileNotFoundError(
-                f"MediaPipe Tasks requires {task_path} for hand landmark extraction."
+            print(
+                "MediaPipe Tasks API requires the hand landmarker model.",
+                file=sys.stderr,
             )
+            return None
 
         options = mp_tasks_vision.HandLandmarkerOptions(
-            base_options=mp_base_options.BaseOptions(model_asset_path=str(task_path)),
+            base_options=mp.tasks.BaseOptions(
+                model_asset_path=str(task_path),
+                delegate=mp.tasks.BaseOptions.Delegate.CPU,
+            ),
             running_mode=mp_running_mode.VisionTaskRunningMode.IMAGE,
             num_hands=1,
             min_hand_detection_confidence=0.45,
@@ -250,7 +268,9 @@ def make_static_hands():
                         self.multi_hand_landmarks = hands_list
 
                 hands_list = []
-                for hand_landmarks in getattr(result, "hand_landmarks", []) or []:
+                for hand_landmarks in getattr(
+                    result, "hand_landmarks", []
+                ) or []:
                     hands_list.append(_Hand(hand_landmarks))
                 return _Result(hands_list)
 
@@ -258,6 +278,47 @@ def make_static_hands():
                 self.detector.close()
 
         return TasksHandsWrapper(landmarker)
+    except Exception as exc:
+        print(
+            f"WARNING: MediaPipe hands initialization failed: {exc}",
+            file=sys.stderr,
+        )
+        return None
+
+
+def _process_image_batch(image_paths_with_labels):
+    """Worker function for parallel landmark extraction.
+
+    Each worker process creates its own MediaPipe hands instance to avoid
+    memory lock contention.
+    """
+    import cv2
+    import numpy as np
+    from pathlib import Path
+
+    from utils import extract_landmarks, extract_skeleton_image_landmarks, make_static_hands
+
+    hands = make_static_hands()
+    if hands is None:
+        return [], len(image_paths_with_labels)
+
+    results = []
+    skipped = 0
+    try:
+        for image_path, label in image_paths_with_labels:
+            image = cv2.imread(str(image_path))
+            landmarks = extract_landmarks(image, hands, normalize=True)
+            if landmarks is None:
+                landmarks = extract_skeleton_image_landmarks(image)
+            if landmarks is not None:
+                results.append((landmarks, label))
+            else:
+                skipped += 1
+    finally:
+        if hasattr(hands, "close"):
+            hands.close()
+
+    return results, skipped
 
 
 def load_image_landmark_dataset(refresh_cache=False, max_images_per_class=None):
@@ -283,38 +344,53 @@ def load_image_landmark_dataset(refresh_cache=False, max_images_per_class=None):
         return np.empty((0, FEATURE_DIM), dtype=np.float32), np.array([], dtype=str)
 
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
+
+    image_paths = []
+    for class_dir in sorted(
+        [path for path in IMAGE_DATA_DIR.iterdir() if path.is_dir()],
+        key=lambda p: sort_label(p.name),
+    ):
+        class_seen = 0
+        for image_path in sorted(class_dir.iterdir()):
+            if (
+                not image_path.is_file()
+                or image_path.suffix.lower() not in IMAGE_EXTENSIONS
+            ):
+                continue
+            if max_images_per_class and class_seen >= max_images_per_class:
+                break
+            class_seen += 1
+            image_paths.append((image_path, class_dir.name))
+
+    if not image_paths:
+        return np.empty((0, FEATURE_DIM), dtype=np.float32), np.array([], dtype=str)
+
+    num_classes = len({label for _, label in image_paths})
+    workers = max(1, os.cpu_count() or 1)
+    print(
+        f"Found {len(image_paths)} images across {num_classes} classes. "
+        f"Starting parallel CPU extraction on {workers} workers..."
+    )
+
+    batch_size = max(1, min(16, len(image_paths) // workers + 1))
+    batches = [
+        image_paths[i : i + batch_size] for i in range(0, len(image_paths), batch_size)
+    ]
+
     rows = []
     labels = []
     skipped = 0
 
-    hands = make_static_hands()
-    try:
-        for class_dir in sorted(
-            [path for path in IMAGE_DATA_DIR.iterdir() if path.is_dir()],
-            key=lambda p: sort_label(p.name),
+    with ProcessPoolExecutor(max_workers=workers) as executor:
+        for batch_results, batch_skipped in tqdm(
+            executor.map(_process_image_batch, batches, chunksize=1),
+            total=len(batches),
+            desc="Extracting MediaPipe Landmarks",
         ):
-            class_seen = 0
-            for image_path in sorted(class_dir.iterdir()):
-                if (
-                    not image_path.is_file()
-                    or image_path.suffix.lower() not in IMAGE_EXTENSIONS
-                ):
-                    continue
-                if max_images_per_class and class_seen >= max_images_per_class:
-                    break
-                class_seen += 1
-                image = cv2.imread(str(image_path))
-                landmarks = extract_landmarks(image, hands, normalize=True)
-                if landmarks is None:
-                    landmarks = extract_skeleton_image_landmarks(image)
-                if landmarks is None:
-                    skipped += 1
-                    continue
+            for landmarks, label in batch_results:
                 rows.append(landmarks)
-                labels.append(class_dir.name)
-    finally:
-        if hasattr(hands, "close"):
-            hands.close()
+                labels.append(label)
+            skipped += batch_skipped
 
     X = (
         np.stack(rows, axis=0).astype(np.float32)
@@ -522,17 +598,21 @@ def extract_landmarks(image, hands, normalize=True):
                 classifications = getattr(handedness[index], "classification", [])
                 if classifications:
                     label = getattr(classifications[0], "label", None)
-            detected_hands.append((str(label or "").lower(), np.array(points, dtype=np.float32)))
+            detected_hands.append(
+                (str(label or "").lower(), np.array(points, dtype=np.float32))
+            )
 
     if not detected_hands:
         return None
 
     left_hand = next((hand for label, hand in detected_hands if label == "left"), None)
-    right_hand = next((hand for label, hand in detected_hands if label == "right"), None)
+    right_hand = next(
+        (hand for label, hand in detected_hands if label == "right"), None
+    )
 
-    # Older MediaPipe wrappers do not expose handedness. Preserve a stable
-    # fallback based on image position for those installations.
-    unlabelled = [hand for label, hand in detected_hands if label not in {"left", "right"}]
+    unlabelled = [
+        hand for label, hand in detected_hands if label not in {"left", "right"}
+    ]
     if unlabelled:
         unlabelled.sort(key=lambda hand: float(np.mean(hand[:, 0])))
         if left_hand is None:

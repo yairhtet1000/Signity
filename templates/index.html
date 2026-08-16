@@ -1,17 +1,13 @@
-{% extends "base.html" %}
-
-{% block title %}Overview · Signity{% endblock %}
-{% block topbar_label %}Overview{% endblock %}
-{% block body_class %}overview-page{% endblock %}
-
-{% block content %}
+{% extends "base.html" %} {% block title %}Overview · Signity{% endblock %} {%
+block topbar_label %}Overview{% endblock %} {% block body_class
+%}overview-page{% endblock %} {% block content %}
 <section class="page-heading">
   <div class="page-heading-copy">
     <span class="section-label">00 / workspace overview</span>
     <h1>Make every sign understood.</h1>
     <p>
-      Signity turns live American Sign Language into clear, confident speech with
-      hand tracking and a temporal recognition model.
+      Signity turns live American Sign Language into clear, confident speech
+      with hand tracking and a temporal recognition model.
     </p>
   </div>
   <div class="page-heading-aside">
@@ -28,8 +24,12 @@
     </div>
     {% else %}
     <div class="page-actions">
-      <a class="button button-primary" href="{{ url_for('auth.login_user') }}">User sign in</a>
-      <a class="button button-secondary" href="{{ url_for('auth.register') }}">Register</a>
+      <a class="button button-primary" href="{{ url_for('auth.login_user') }}"
+        >User sign in</a
+      >
+      <a class="button button-secondary" href="{{ url_for('auth.register') }}"
+        >Register</a
+      >
     </div>
     {% endif %}
   </div>
@@ -47,10 +47,14 @@
       <div class="cta-row">
         {% if account and (account.role == "admin" or account.approved) %}
         <a class="button button-primary" href="{{ url_for('predict.live') }}">
-          <i class="ti ti-player-play" aria-hidden="true"></i>Open live interpreter
+          <i class="ti ti-player-play" aria-hidden="true"></i>Open live
+          interpreter
         </a>
         {% else %}
-        <a class="button button-primary" href="{{ url_for('auth.login_user') }}">
+        <a
+          class="button button-primary"
+          href="{{ url_for('auth.login_user') }}"
+        >
           <i class="ti ti-login-2" aria-hidden="true"></i>Sign in to interpret
         </a>
         {% endif %}
@@ -61,8 +65,12 @@
     </div>
     <div class="overview-hero-footer">
       <span>
-        <span class="status-dot {{ 'is-ready' if has_model else 'is-pending' }}" aria-hidden="true"></span>
-        {{ "Model ready for live inference" if has_model else "Model training is required" }}
+        <span
+          class="status-dot {{ 'is-ready' if has_model else 'is-pending' }}"
+          aria-hidden="true"
+        ></span>
+        {{ "Model ready for live inference" if has_model else "Model training is
+        required" }}
       </span>
       <span>OpenCV · MediaPipe · TensorFlow · gTTS</span>
     </div>
@@ -75,7 +83,9 @@
         <i class="ti ti-photo" aria-hidden="true"></i>
       </div>
       <strong class="metric-value">{{ summary.total }}</strong>
-      <p class="metric-copy">Static alphabet and digit examples available to the classifier.</p>
+      <p class="metric-copy">
+        Static alphabet and digit examples available to the classifier.
+      </p>
     </article>
     <article class="metric-card card">
       <div class="metric-label">
@@ -83,16 +93,25 @@
         <i class="ti ti-chart-line" aria-hidden="true"></i>
       </div>
       <strong class="metric-value">{{ summary.words.total_samples }}</strong>
-      <p class="metric-copy">Temporal landmark sequences used for dynamic word recognition.</p>
+      <p class="metric-copy">
+        Temporal landmark sequences used for dynamic word recognition.
+      </p>
     </article>
     <article class="metric-card card">
       <div class="metric-label">
         <span>System status</span>
-        <i class="ti ti-{{ 'circle-check' if has_model else 'alert-triangle' }}" aria-hidden="true"></i>
+        <i
+          class="ti ti-{{ 'circle-check' if has_model else 'alert-triangle' }}"
+          aria-hidden="true"
+        ></i>
       </div>
-      <strong class="metric-value">{{ "Ready" if has_model else "Setup" }}</strong>
+      <strong class="metric-value"
+        >{{ "Ready" if has_model else "Setup" }}</strong
+      >
       <p class="metric-copy">
-        {% if has_model %}Prediction assets are available for the current workspace.{% else %}Train the model before starting a live session.{% endif %}
+        {% if has_model %}Prediction assets are available for the current
+        workspace.{% else %}Train the model before starting a live session.{%
+        endif %}
       </p>
     </article>
   </div>

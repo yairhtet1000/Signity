@@ -15,14 +15,21 @@
       rel="stylesheet"
       href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont/tabler-icons.min.css"
     />
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='style.css') }}"
+    />
     {% block head %}{% endblock %}
   </head>
   <body class="{% block body_class %}{% endblock %}">
     {% set endpoint = request.endpoint or '' %}
     <main class="app-frame">
       <header class="topbar">
-        <a class="brand" href="{{ url_for('main.index') }}" aria-label="Signity home">
+        <a
+          class="brand"
+          href="{{ url_for('main.index') }}"
+          aria-label="Signity home"
+        >
           <span class="brand-mark" aria-hidden="true">S</span>
           <span class="brand-copy">
             <strong>Signity</strong>
@@ -32,12 +39,16 @@
 
         <div class="topbar-page" aria-label="Current workspace">
           <span class="topbar-kicker">Workspace</span>
-          <span class="topbar-label">{% block topbar_label %}Overview{% endblock %}</span>
+          <span class="topbar-label"
+            >{% block topbar_label %}Overview{% endblock %}</span
+          >
         </div>
 
         <div class="topbar-actions">
           {% if has_model is defined %}
-          <span class="status-badge status-{{ 'ready' if has_model else 'pending' }}">
+          <span
+            class="status-badge status-{{ 'ready' if has_model else 'pending' }}"
+          >
             <span class="status-dot" aria-hidden="true"></span>
             {{ "Model ready" if has_model else "Training needed" }}
           </span>
@@ -46,24 +57,37 @@
             <span class="status-dot" aria-hidden="true"></span>
             {{ account.role|title }} account
           </span>
-          {% endif %}
-
-          {% if account %}
+          {% endif %} {% if account %}
           <span class="account-chip">
-            <span class="avatar" aria-hidden="true">{{ account.name[0]|upper if account.name else "S" }}</span>
+            <span class="avatar" aria-hidden="true"
+              >{{ account.name[0]|upper if account.name else "S" }}</span
+            >
             <span class="account-copy">
               <strong>{{ account.name }}</strong>
               <small>{{ account.role|title }}</small>
             </span>
           </span>
-          <form class="logout-form" method="post" action="{{ url_for('auth.logout') }}">
+          <form
+            class="logout-form"
+            method="post"
+            action="{{ url_for('auth.logout') }}"
+          >
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-            <button class="icon-button" type="submit" aria-label="Sign out" title="Sign out">
+            <button
+              class="icon-button"
+              type="submit"
+              aria-label="Sign out"
+              title="Sign out"
+            >
               <i class="ti ti-logout-2" aria-hidden="true"></i>
             </button>
           </form>
           {% else %}
-          <a class="button button-secondary button-compact" href="{{ url_for('auth.login_choice') }}">Sign in</a>
+          <a
+            class="button button-secondary button-compact"
+            href="{{ url_for('auth.login_choice') }}"
+            >Sign in</a
+          >
           {% endif %}
         </div>
       </header>
@@ -72,54 +96,89 @@
         <aside class="side-rail" aria-label="Primary navigation">
           <div class="rail-caption">Navigate</div>
           <nav class="rail-nav">
-            <a class="rail-link {{ 'is-active' if endpoint == 'main.index' else '' }}" href="{{ url_for('main.index') }}" {% if endpoint == 'main.index' %}aria-current="page"{% endif %}>
-              <i class="ti ti-layout-dashboard" aria-hidden="true"></i><span>Home</span>
+            <a
+              class="rail-link {{ 'is-active' if endpoint == 'main.index' else '' }}"
+              href="{{ url_for('main.index') }}"
+              {% if endpoint == "main.index" %}aria-current="page"
+              {% endif %}
+            >
+              <i class="ti ti-layout-dashboard" aria-hidden="true"></i
+              ><span>Home</span>
             </a>
             {% if account and (account.role == 'admin' or account.approved) %}
-            <a class="rail-link {{ 'is-active' if endpoint == 'predict.live' else '' }}" href="{{ url_for('predict.live') }}" {% if endpoint == 'predict.live' %}aria-current="page"{% endif %}>
+            <a
+              class="rail-link {{ 'is-active' if endpoint == 'predict.live' else '' }}"
+              href="{{ url_for('predict.live') }}"
+              {% if endpoint == "predict.live" %}aria-current="page"
+              {% endif %}
+            >
               <i class="ti ti-video" aria-hidden="true"></i><span>Live</span>
             </a>
             {% endif %}
-            <a class="rail-link {{ 'is-active' if endpoint == 'main.dataset' else '' }}" href="{{ url_for('main.dataset') }}" {% if endpoint == 'main.dataset' %}aria-current="page"{% endif %}>
-              <i class="ti ti-database" aria-hidden="true"></i><span>Dataset</span>
+            <a
+              class="rail-link {{ 'is-active' if endpoint == 'main.dataset' else '' }}"
+              href="{{ url_for('main.dataset') }}"
+              {% if endpoint == "main.dataset" %}aria-current="page"
+              {% endif %}
+            >
+              <i class="ti ti-database" aria-hidden="true"></i
+              ><span>Dataset</span>
             </a>
             {% if account and account.role == 'user' and account.approved %}
-            <a class="rail-link {{ 'is-active' if endpoint == 'predict.history' else '' }}" href="{{ url_for('predict.history') }}" {% if endpoint == 'predict.history' %}aria-current="page"{% endif %}>
-              <i class="ti ti-history" aria-hidden="true"></i><span>History</span>
+            <a
+              class="rail-link {{ 'is-active' if endpoint == 'predict.history' else '' }}"
+              href="{{ url_for('predict.history') }}"
+              {% if endpoint == "predict.history" %}aria-current="page"
+              {% endif %}
+            >
+              <i class="ti ti-history" aria-hidden="true"></i
+              ><span>History</span>
             </a>
-            {% endif %}
-            {% if account %}
-            <a class="rail-link {{ 'is-active' if endpoint in ['profile.edit_profile', 'profile.change_password'] else '' }}" href="{{ url_for('profile.edit_profile') }}" {% if endpoint in ['profile.edit_profile', 'profile.change_password'] %}aria-current="page"{% endif %}>
+            {% endif %} {% if account %}
+            <a
+              class="rail-link {{ 'is-active' if endpoint in ['profile.edit_profile', 'profile.change_password'] else '' }}"
+              href="{{ url_for('profile.edit_profile') }}"
+              {% if endpoint in ['profile.edit_profile', 'profile.change_password'] %}aria-current="page"
+              {% endif %}
+            >
               <i class="ti ti-user" aria-hidden="true"></i><span>Profile</span>
             </a>
-            {% endif %}
-            {% if account and account.role == 'admin' %}
-            <a class="rail-link {{ 'is-active' if endpoint == 'admin.admin_dashboard' else '' }}" href="{{ url_for('admin.admin_dashboard') }}" {% if endpoint == 'admin.admin_dashboard' %}aria-current="page"{% endif %}>
-              <i class="ti ti-shield-check" aria-hidden="true"></i><span>Admin</span>
+            {% endif %} {% if account and account.role == 'admin' %}
+            <a
+              class="rail-link {{ 'is-active' if endpoint == 'admin.admin_dashboard' else '' }}"
+              href="{{ url_for('admin.admin_dashboard') }}"
+              {% if endpoint == "admin.admin_dashboard" %}aria-current="page"
+              {% endif %}
+            >
+              <i class="ti ti-shield-check" aria-hidden="true"></i
+              ><span>Admin</span>
             </a>
             {% endif %}
           </nav>
           <div class="rail-footer">
             <span class="rail-footer-dot" aria-hidden="true"></span>
-            <span>{{ "Online" if has_model is defined and has_model else "Workspace" }}</span>
+            <span
+              >{{ "Online" if has_model is defined and has_model else
+              "Workspace" }}</span
+            >
           </div>
         </aside>
 
         <section class="main-content">
-          {% with messages = get_flashed_messages(with_categories=true) %}
-          {% if messages %}
+          {% with messages = get_flashed_messages(with_categories=true) %} {% if
+          messages %}
           <div class="flash-stack" aria-live="polite">
             {% for category, message in messages %}
             <div class="toast toast-{{ category }}" role="status">
-              <i class="ti ti-{{ 'circle-check' if category == 'success' else 'alert-triangle' if category in ['warning', 'error'] else 'info-circle' }}" aria-hidden="true"></i>
+              <i
+                class="ti ti-{{ 'circle-check' if category == 'success' else 'alert-triangle' if category in ['warning', 'error'] else 'info-circle' }}"
+                aria-hidden="true"
+              ></i>
               <span>{{ message }}</span>
             </div>
             {% endfor %}
           </div>
-          {% endif %}
-          {% endwith %}
-
-          {% block content %}{% endblock %}
+          {% endif %} {% endwith %} {% block content %}{% endblock %}
 
           <footer class="footer">
             <span>Signity · Real-time ASL recognition</span>
@@ -129,38 +188,69 @@
       </div>
 
       <nav class="mobile-nav" aria-label="Mobile navigation">
-        <a class="mobile-nav-link {{ 'is-active' if endpoint == 'main.index' else '' }}" href="{{ url_for('main.index') }}" {% if endpoint == 'main.index' %}aria-current="page"{% endif %}>
-          <i class="ti ti-layout-dashboard" aria-hidden="true"></i><span>Home</span>
+        <a
+          class="mobile-nav-link {{ 'is-active' if endpoint == 'main.index' else '' }}"
+          href="{{ url_for('main.index') }}"
+          {% if endpoint == "main.index" %}aria-current="page"
+          {% endif %}
+        >
+          <i class="ti ti-layout-dashboard" aria-hidden="true"></i
+          ><span>Home</span>
         </a>
         {% if account and (account.role == 'admin' or account.approved) %}
-        <a class="mobile-nav-link {{ 'is-active' if endpoint == 'predict.live' else '' }}" href="{{ url_for('predict.live') }}" {% if endpoint == 'predict.live' %}aria-current="page"{% endif %}>
+        <a
+          class="mobile-nav-link {{ 'is-active' if endpoint == 'predict.live' else '' }}"
+          href="{{ url_for('predict.live') }}"
+          {% if endpoint == "predict.live" %}aria-current="page"
+          {% endif %}
+        >
           <i class="ti ti-video" aria-hidden="true"></i><span>Live</span>
         </a>
         {% else %}
-        <a class="mobile-nav-link {{ 'is-active' if endpoint == 'main.dataset' else '' }}" href="{{ url_for('main.dataset') }}" {% if endpoint == 'main.dataset' %}aria-current="page"{% endif %}>
+        <a
+          class="mobile-nav-link {{ 'is-active' if endpoint == 'main.dataset' else '' }}"
+          href="{{ url_for('main.dataset') }}"
+          {% if endpoint == "main.dataset" %}aria-current="page"
+          {% endif %}
+        >
           <i class="ti ti-database" aria-hidden="true"></i><span>Dataset</span>
         </a>
-        {% endif %}
-        {% if account and account.role == 'admin' %}
-        <a class="mobile-nav-link {{ 'is-active' if endpoint == 'admin.admin_dashboard' else '' }}" href="{{ url_for('admin.admin_dashboard') }}" {% if endpoint == 'admin.admin_dashboard' %}aria-current="page"{% endif %}>
-          <i class="ti ti-shield-check" aria-hidden="true"></i><span>Admin</span>
+        {% endif %} {% if account and account.role == 'admin' %}
+        <a
+          class="mobile-nav-link {{ 'is-active' if endpoint == 'admin.admin_dashboard' else '' }}"
+          href="{{ url_for('admin.admin_dashboard') }}"
+          {% if endpoint == "admin.admin_dashboard" %}aria-current="page"
+          {% endif %}
+        >
+          <i class="ti ti-shield-check" aria-hidden="true"></i
+          ><span>Admin</span>
         </a>
         {% elif account and account.role == 'user' and account.approved %}
-        <a class="mobile-nav-link {{ 'is-active' if endpoint == 'predict.history' else '' }}" href="{{ url_for('predict.history') }}" {% if endpoint == 'predict.history' %}aria-current="page"{% endif %}>
+        <a
+          class="mobile-nav-link {{ 'is-active' if endpoint == 'predict.history' else '' }}"
+          href="{{ url_for('predict.history') }}"
+          {% if endpoint == "predict.history" %}aria-current="page"
+          {% endif %}
+        >
           <i class="ti ti-history" aria-hidden="true"></i><span>History</span>
         </a>
         {% else %}
         <a class="mobile-nav-link" href="{{ url_for('auth.login_choice') }}">
           <i class="ti ti-login-2" aria-hidden="true"></i><span>Sign in</span>
         </a>
-        {% endif %}
-        {% if account %}
-        <a class="mobile-nav-link {{ 'is-active' if endpoint in ['profile.edit_profile', 'profile.change_password'] else '' }}" href="{{ url_for('profile.edit_profile') }}" {% if endpoint in ['profile.edit_profile', 'profile.change_password'] %}aria-current="page"{% endif %}>
+        {% endif %} {% if account %}
+        <a
+          class="mobile-nav-link {{ 'is-active' if endpoint in ['profile.edit_profile', 'profile.change_password'] else '' }}"
+          href="{{ url_for('profile.edit_profile') }}"
+          {% if endpoint in ['profile.edit_profile', 'profile.change_password'] %}aria-current="page"
+          {% endif %}
+        >
           <i class="ti ti-user" aria-hidden="true"></i><span>Profile</span>
         </a>
         {% else %}
         <a class="mobile-nav-link" href="{{ url_for('auth.register') }}">
-          <i class="ti ti-user-plus" aria-hidden="true"></i><span>Register</span>
+          <i class="ti ti-user-plus" aria-hidden="true"></i
+          ><span>Register</span>
         </a>
         {% endif %}
       </nav>

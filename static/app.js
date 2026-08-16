@@ -40,23 +40,27 @@ function showToast(message) {
 }
 
 function updatePredictionUI(result) {
-  const label = result.label && result.label !== "Unsure"
-    ? result.label
-    : result.top && result.top[0]
-      ? result.top[0].label
-      : "Unsure";
+  const label =
+    result.label && result.label !== "Unsure"
+      ? result.label
+      : result.top && result.top[0]
+        ? result.top[0].label
+        : "Unsure";
 
   predictionElement.textContent = label;
-  confidenceElement.textContent = Math.round(result.confidence * 100) + "% confidence";
+  confidenceElement.textContent =
+    Math.round(result.confidence * 100) + "% confidence";
   confidenceElement.classList.toggle("is-low", !result.is_confident);
   overlayElement.textContent = label;
   predictionElement.classList.toggle("prediction-muted", label === "Unsure");
 
   if (topPredictionsElement) {
     if (result.top && result.top.length > 0) {
-      topPredictionsElement.innerHTML = result.top.slice(0, 3).map((item, index) => {
-        const pct = Math.round(item.confidence * 100);
-        return `<div class="top-candidate" role="listitem">
+      topPredictionsElement.innerHTML = result.top
+        .slice(0, 3)
+        .map((item, index) => {
+          const pct = Math.round(item.confidence * 100);
+          return `<div class="top-candidate" role="listitem">
           <div class="top-candidate-meta">
             <span class="top-rank">${index + 1}</span>
             <span class="top-label">${item.label}</span>
@@ -64,7 +68,8 @@ function updatePredictionUI(result) {
           </div>
           <span class="top-bar" aria-hidden="true"><span class="top-bar-fill" style="width: ${pct}%"></span></span>
         </div>`;
-      }).join("");
+        })
+        .join("");
     } else {
       topPredictionsElement.innerHTML = "";
     }
@@ -76,14 +81,18 @@ function setTrackingStatus(validFrames, expectedFrames) {
   const valid = ratio >= 0.4;
   trackingDot?.classList.toggle("is-valid", valid);
   trackingDot?.classList.toggle("is-invalid", !valid);
-  if (trackingText) trackingText.textContent = `${validFrames}/${expectedFrames} hand frames detected`;
+  if (trackingText)
+    trackingText.textContent = `${validFrames}/${expectedFrames} hand frames detected`;
 }
 
 async function confirmHistory(label) {
   try {
     await fetch("/history/confirm", {
       method: "POST",
-      headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken },
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRF-Token": csrfToken,
+      },
       body: JSON.stringify({ label }),
     });
   } catch (error) {
@@ -94,7 +103,8 @@ async function confirmHistory(label) {
 function speakLabel(label) {
   const audio = new Audio(`/tts?text=${encodeURIComponent(label)}`);
   audio.play().catch(() => {
-    statusElement.textContent = "Stable sign detected. Click Speak result if audio was blocked.";
+    statusElement.textContent =
+      "Stable sign detected. Click Speak result if audio was blocked.";
   });
 }
 
@@ -110,7 +120,8 @@ async function startCamera() {
     prediction = "...";
     predictionElement.textContent = "Scanning...";
     confidenceElement.textContent = "";
-    statusElement.textContent = "Camera active. Position your hand in frame and wait for recognition.";
+    statusElement.textContent =
+      "Camera active. Position your hand in frame and wait for recognition.";
     overlayElement.textContent = "Scanning for a sign";
 
     startPredictionLoop();
@@ -195,14 +206,20 @@ async function requestPrediction() {
     updatePredictionUI(result);
     setTrackingStatus(result.valid_frames, SEQUENCE_LENGTH);
 
-    if (result.is_confident && result.label && result.label !== "Unsure" && result.label !== lastRecordedWord) {
+    if (
+      result.is_confident &&
+      result.label &&
+      result.label !== "Unsure" &&
+      result.label !== lastRecordedWord
+    ) {
       lastRecordedWord = result.label;
       prediction = result.label;
       confirmHistory(prediction);
       if (autoSpeakEnabled) {
         speakLabel(prediction);
       }
-      statusElement.textContent = "Recognized a sign from the recent frame sequence.";
+      statusElement.textContent =
+        "Recognized a sign from the recent frame sequence.";
     } else if (result.label && result.label !== "Unsure") {
       prediction = result.label;
       statusElement.textContent = "Sign unclear. Hold the sign steady.";
@@ -239,7 +256,13 @@ function toggleAutoSpeak() {
 
   if (autoSpeakEnabled) {
     const text = predictionElement.textContent;
-    if (text && text !== "Waiting for camera..." && text !== "Scanning..." && text !== "Camera stopped" && text !== "...") {
+    if (
+      text &&
+      text !== "Waiting for camera..." &&
+      text !== "Scanning..." &&
+      text !== "Camera stopped" &&
+      text !== "..."
+    ) {
       speakLabel(text);
     }
   }
@@ -247,7 +270,13 @@ function toggleAutoSpeak() {
 
 function speakPrediction() {
   const text = predictionElement.textContent;
-  if (!text || text === "Waiting for camera..." || text === "Scanning..." || text === "Camera stopped" || text === "...") {
+  if (
+    !text ||
+    text === "Waiting for camera..." ||
+    text === "Scanning..." ||
+    text === "Camera stopped" ||
+    text === "..."
+  ) {
     statusElement.textContent = "No prediction yet. Start the camera first.";
     return;
   }

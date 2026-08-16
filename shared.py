@@ -80,9 +80,7 @@ def admin_required(api=False):
         @wraps(view)
         def wrapped(*args, **kwargs):
             if g.account["role"] != "admin":
-                return _auth_failure(
-                    api, "Administrator access is required.", 403
-                )
+                return _auth_failure(api, "Administrator access is required.", 403)
             return view(*args, **kwargs)
 
         return wrapped
@@ -115,9 +113,7 @@ def csrf_required(view):
     def wrapped(*args, **kwargs):
         if request.method in {"GET", "HEAD", "OPTIONS"}:
             return view(*args, **kwargs)
-        token = request.form.get("csrf_token") or request.headers.get(
-            "X-CSRF-Token"
-        )
+        token = request.form.get("csrf_token") or request.headers.get("X-CSRF-Token")
         if not token or not secrets.compare_digest(
             token, session.get("csrf_token", "")
         ):

@@ -1,6 +1,16 @@
 """Prediction and history routes blueprint."""
 
-from flask import Blueprint, current_app, flash, redirect, render_template, request, session, url_for, g
+from flask import (
+    Blueprint,
+    current_app,
+    flash,
+    redirect,
+    render_template,
+    request,
+    session,
+    url_for,
+    g,
+)
 
 from shared import (
     api_error as api_response_error,
@@ -28,6 +38,7 @@ def live():
     if has_model:
         try:
             from models.predictor import prediction_sequence_length
+
             expected_sequence_length = prediction_sequence_length()
         except Exception:
             expected_sequence_length = 20
@@ -62,6 +73,7 @@ def predict():
 
     try:
         from models.predictor import load_model_and_labels
+
         load_model_and_labels(app_logger=current_app.logger)
     except (FileNotFoundError, ValueError) as exc:
         return api_response_error(str(exc), 503)
@@ -79,6 +91,7 @@ def confirm_history():
         return api_response_error("A confirmed label is required.", 400)
     try:
         import models.predictor as predictor
+
         predictor.load_model_and_labels()
         labels = predictor.label_classes
     except (FileNotFoundError, ValueError):
@@ -98,6 +111,7 @@ def clear_history():
     if account["role"] == "admin":
         return api_response_error("Admins do not have history.", 403)
     from database import get_connection
+
     with get_connection() as connection:
         connection.execute(
             'DELETE FROM "UserHistory" WHERE userId = ?', (account["id"],)
@@ -115,6 +129,7 @@ def history():
     if account["role"] == "admin":
         return redirect(url_for("admin.admin_dashboard"))
     from database import get_connection
+
     with get_connection() as connection:
         rows = connection.execute(
             'SELECT id, interpretedText, timestamp FROM "UserHistory" WHERE userId = ? ORDER BY timestamp DESC, id DESC',

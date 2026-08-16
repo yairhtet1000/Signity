@@ -11,6 +11,7 @@ bp = Blueprint("main", __name__)
 def index():
     from utils import dataset_summary
     from models.predictor import model_assets_ready
+
     summary = dataset_summary()
     has_model = model_assets_ready(summary)
     return render_template(

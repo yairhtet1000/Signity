@@ -39,9 +39,17 @@ def available_model_path():
 def prediction_sequence_length():
     if model is None:
         from utils import SEQUENCE_LENGTH
+
         return SEQUENCE_LENGTH
     expected_length = model.input_shape[1]
     return int(expected_length) if expected_length is not None else 20
+
+
+def configure_tensorflow():
+    gpus = tf.config.list_physical_devices("GPU")
+    if gpus:
+        for gpu in gpus:
+            tf.config.experimental.set_memory_growth(gpu, True)
 
 
 def load_model_and_labels(app_logger=None):
@@ -110,7 +118,9 @@ def sequence_from_live_frames(image_sequence, expected_length):
         image_sequence = []
 
     if len(image_sequence) < expected_length:
-        image_sequence = image_sequence + [None] * (expected_length - len(image_sequence))
+        image_sequence = image_sequence + [None] * (
+            expected_length - len(image_sequence)
+        )
     elif len(image_sequence) > expected_length:
         image_sequence = image_sequence[:expected_length]
 
@@ -141,7 +151,9 @@ def sequence_from_live_frames(image_sequence, expected_length):
     return sequence, len(landmarks_sequence)
 
 
-def log_inference(sequence, probabilities, predicted_label, confidence, valid_frames, app_logger=None):
+def log_inference(
+    sequence, probabilities, predicted_label, confidence, valid_frames, app_logger=None
+):
     if INFERENCE_DEBUG:
         msg = (
             "inference valid_frames=%s landmarks=%s sequence=%s probabilities=%s label=%s confidence=%.4f",
@@ -161,29 +173,38 @@ def log_inference(sequence, probabilities, predicted_label, confidence, valid_fr
 def run_prediction(account, image_sequence, app_logger=None):
     expected_length = prediction_sequence_length()
     if expected_length > 32:
-        return api_response_error("The loaded model has an unsupported sequence length.", 503)
+        return api_response_error(
+            "The loaded model has an unsupported sequence length.", 503
+        )
 
     try:
-        sequence, valid_frames = sequence_from_live_frames(image_sequence, expected_length)
+        sequence, valid_frames = sequence_from_live_frames(
+            image_sequence, expected_length
+        )
     except ValueError as exc:
         return api_response_error(str(exc), 422)
 
     if sequence is None:
-        return api_response_success({
-            "label": "Unsure",
-            "raw_label": "Unsure",
-            "confidence": 0.0,
-            "is_confident": False,
-            "has_clear_margin": False,
-            "top": [],
-            "sequence_shape": [1, expected_length, FEATURE_DIM],
-            "valid_frames": valid_frames,
-        })
+        return api_response_success(
+            {
+                "label": "Unsure",
+                "raw_label": "Unsure",
+                "confidence": 0.0,
+                "is_confident": False,
+                "has_clear_margin": False,
+                "top": [],
+                "sequence_shape": [1, expected_length, FEATURE_DIM],
+                "valid_frames": valid_frames,
+            }
+        )
 
     try:
-        input_tensor = np.expand_dims(sequence, axis=0).astype(np.float32)
+        input_tensor = tf.convert_to_tensor(
+            np.expand_dims(sequence, axis=0).astype(np.float32)
+        )
         with inference_lock:
-            prediction = model.predict(input_tensor, verbose=0)[0]
+            with tf.device("/GPU:0"):
+                prediction = model(input_tensor, training=False)[0].numpy()
     except Exception as exc:
         if app_logger:
             app_logger.exception("Prediction failed")
@@ -215,15 +236,19 @@ def run_prediction(account, image_sequence, app_logger=None):
         "sequence_shape": list(input_tensor.shape),
         "valid_frames": valid_frames,
     }
-    log_inference(sequence, prediction, result["raw_label"], confidence, valid_frames, app_logger)
+    log_inference(
+        sequence, prediction, result["raw_label"], confidence, valid_frames, app_logger
+    )
     return api_response_success(result)
 
 
 def api_response_success(data=None, status=200):
     from shared import api_response
+
     return api_response(data, status)
 
 
 def api_response_error(message, status=400):
     from shared import api_error
+
     return api_error(message, status)
