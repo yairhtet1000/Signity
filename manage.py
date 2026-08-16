@@ -20,7 +20,11 @@ def create_admin(args):
         with get_connection() as connection:
             connection.execute(
                 'INSERT INTO "Admin" (name, email, password) VALUES (?, ?, ?)',
-                (args.name.strip(), args.email.strip().lower(), generate_password_hash(password)),
+                (
+                    args.name.strip(),
+                    args.email.strip().lower(),
+                    generate_password_hash(password),
+                ),
             )
     except Exception as exc:
         raise SystemExit(f"Could not create admin: {exc}") from exc
@@ -30,7 +34,9 @@ def create_admin(args):
 def main():
     parser = argparse.ArgumentParser(description="Manage Signity accounts.")
     subparsers = parser.add_subparsers(dest="command", required=True)
-    create = subparsers.add_parser("create-admin", help="Create an administrator account.")
+    create = subparsers.add_parser(
+        "create-admin", help="Create an administrator account."
+    )
     create.add_argument("--name", required=True)
     create.add_argument("--email", required=True)
     create.set_defaults(handler=create_admin)

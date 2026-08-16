@@ -1,15 +1,14 @@
-{% extends "base.html" %}
-
-{% block title %}History · Signity{% endblock %}
-{% block topbar_label %}Interpretation history{% endblock %}
-{% block body_class %}history-page{% endblock %}
-
-{% block content %}
+{% extends "base.html" %} {% block title %}History · Signity{% endblock %} {%
+block topbar_label %}Interpretation history{% endblock %} {% block body_class
+%}history-page{% endblock %} {% block content %}
 <section class="page-heading">
   <div class="page-heading-copy">
     <span class="section-label">03 / confirmed activity</span>
     <h1>Interpretation history</h1>
-    <p>Chronological predictions from your recent live sessions, kept clear and easy to scan.</p>
+    <p>
+      Chronological predictions from your recent live sessions, kept clear and
+      easy to scan.
+    </p>
   </div>
   <div class="page-heading-aside">
     <a class="button button-secondary" href="{{ url_for('predict.live') }}">
@@ -20,11 +19,21 @@
 
 <section class="toolbar" aria-label="History actions">
   <div class="toolbar-copy">
-    <strong>{{ history|length }} confirmed interpretation{{ "s" if history|length != 1 else "" }}</strong>
-    <span>Recognized words are added when the model reaches a confident result.</span>
+    <strong
+      >{{ history|length }} confirmed interpretation{{ "s" if history|length !=
+      1 else "" }}</strong
+    >
+    <span
+      >Recognized words are added when the model reaches a confident
+      result.</span
+    >
   </div>
   <div class="toolbar-actions">
-    <form method="post" action="{{ url_for('predict.clear_history') }}" onsubmit="return confirm('Clear all history?');">
+    <form
+      method="post"
+      action="{{ url_for('predict.clear_history') }}"
+      onsubmit="return confirm('Clear all history?');"
+    >
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
       <button class="button button-danger" type="submit">
         <i class="ti ti-trash" aria-hidden="true"></i>Clear history
@@ -46,9 +55,19 @@
     <tbody>
       {% for item in history %}
       <tr>
-        <td data-label="Timestamp"><time class="timestamp-badge" datetime="{{ item.timestamp }}">{{ item.timestamp }}</time></td>
-        <td data-label="Sign predicted"><strong>{{ item.interpretedText }}</strong></td>
-        <td data-label="Session status"><span class="status-badge status-success"><span class="status-dot" aria-hidden="true"></span>Confirmed</span></td>
+        <td data-label="Timestamp">
+          <time class="timestamp-badge" datetime="{{ item.timestamp }}"
+            >{{ item.timestamp }}</time
+          >
+        </td>
+        <td data-label="Sign predicted">
+          <strong>{{ item.interpretedText }}</strong>
+        </td>
+        <td data-label="Session status">
+          <span class="status-badge status-success"
+            ><span class="status-dot" aria-hidden="true"></span>Confirmed</span
+          >
+        </td>
       </tr>
       {% endfor %}
     </tbody>
@@ -58,8 +77,12 @@
 <section class="empty-state card" aria-label="No interpretation history">
   <i class="ti ti-history-off" aria-hidden="true"></i>
   <strong>No history yet</strong>
-  <p>Start the interpreter and hold a sign steady. Predicted results will appear here automatically.</p>
-  <a class="button button-primary" href="{{ url_for('predict.live') }}">Start interpreter</a>
+  <p>
+    Start the interpreter and hold a sign steady. Predicted results will appear
+    here automatically.
+  </p>
+  <a class="button button-primary" href="{{ url_for('predict.live') }}"
+    >Start interpreter</a
+  >
 </section>
-{% endif %}
-{% endblock %}
+{% endif %} {% endblock %}

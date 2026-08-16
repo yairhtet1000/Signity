@@ -1,42 +1,68 @@
-{% extends "base.html" %}
-
-{% block title %}User sign in · Signity{% endblock %}
-{% block topbar_label %}User sign in{% endblock %}
-{% block body_class %}auth-page{% endblock %}
-
-{% block content %}
+{% extends "base.html" %} {% block title %}User sign in · Signity{% endblock %}
+{% block topbar_label %}User sign in{% endblock %} {% block body_class
+%}auth-page{% endblock %} {% block content %}
 <section class="auth-shell" aria-labelledby="user-sign-in-title">
   <div class="auth-context">
     <div>
       <span class="section-label">Signity / user access</span>
       <h1 id="user-sign-in-title">Translate in real time.</h1>
-      <p>Sign in to open the camera workspace and turn confident ASL predictions into speech.</p>
+      <p>
+        Sign in to open the camera workspace and turn confident ASL predictions
+        into speech.
+      </p>
     </div>
     <div class="auth-context-list">
-      <span><i class="ti ti-camera" aria-hidden="true"></i>Camera-first interpreter workspace</span>
-      <span><i class="ti ti-clock" aria-hidden="true"></i>Confirmed results saved to history</span>
+      <span
+        ><i class="ti ti-camera" aria-hidden="true"></i>Camera-first interpreter
+        workspace</span
+      >
+      <span
+        ><i class="ti ti-clock" aria-hidden="true"></i>Confirmed results saved
+        to history</span
+      >
     </div>
   </div>
   <div class="auth-card">
     <div class="auth-card-header">
       <h2>User sign in</h2>
-      <p>User accounts require admin approval before interpreter access is enabled.</p>
+      <p>
+        User accounts require admin approval before interpreter access is
+        enabled.
+      </p>
     </div>
     <form class="form-stack" method="post">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
       <div class="form-field">
         <label for="user-email">Email</label>
-        <input id="user-email" name="email" type="email" autocomplete="email" required />
+        <input
+          id="user-email"
+          name="email"
+          type="email"
+          autocomplete="email"
+          required
+        />
       </div>
       <div class="form-field">
         <label for="user-password">Password</label>
-        <input id="user-password" name="password" type="password" autocomplete="current-password" required />
+        <input
+          id="user-password"
+          name="password"
+          type="password"
+          autocomplete="current-password"
+          required
+        />
       </div>
       <div class="form-actions">
-        <button class="button button-primary" type="submit"><i class="ti ti-login-2" aria-hidden="true"></i>Sign in</button>
+        <button class="button button-primary" type="submit">
+          <i class="ti ti-login-2" aria-hidden="true"></i>Sign in
+        </button>
       </div>
     </form>
-    <p class="auth-card-footer"><a class="auth-link" href="{{ url_for('auth.login_choice') }}">Back to sign in options</a></p>
+    <p class="auth-card-footer">
+      <a class="auth-link" href="{{ url_for('auth.login_choice') }}"
+        >Back to sign in options</a
+      >
+    </p>
   </div>
 </section>
 {% endblock %}
